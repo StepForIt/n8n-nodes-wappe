@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- First release on npm (0.1.0 was tagged but never published: `publishConfig.access` was missing).
+
 ## 0.1.0
 
 - `Wappe API` credential (instance URL + API key, tested on `GET /api/me`).

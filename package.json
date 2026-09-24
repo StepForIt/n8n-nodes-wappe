@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-wappe",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "n8n nodes for Wappe, the WhatsApp CRM & automation platform: send messages, manage groups and react to incoming messages.",
 	"license": "MIT",
 	"homepage": "https://github.com/StepForIt/n8n-nodes-wappe#readme",
@@ -17,7 +17,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/StepForIt/n8n-nodes-wappe.git"
+		"url": "git+https://github.com/StepForIt/n8n-nodes-wappe.git"
 	},
 	"engines": {
 		"node": ">=20.15"
@@ -35,6 +35,9 @@
 	"files": [
 		"dist"
 	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"n8n": {
 		"n8nNodesApiVersion": 1,
 		"strict": true,
