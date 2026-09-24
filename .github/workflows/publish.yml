@@ -1,0 +1,47 @@
+# Publishes n8n-nodes-wappe to npm with a provenance attestation (required by n8n for community
+# nodes since May 1 2026) when a version tag (e.g. 0.1.0) is pushed.
+#
+# This repository is a read-only MIRROR: the source lives in the Wappe monorepo
+# (packages/n8n-nodes-wappe) and the mirror job pushes both the code and the release tags here.
+# Do not commit to this repository directly: the next sync overwrites it.
+#
+# npm setup (once): package settings → Trusted Publishers → GitHub Actions,
+# repository StepForIt/n8n-nodes-wappe, workflow publish.yml, environment npm.
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    # Protected environment: a maintainer must approve each publication. Even with the mirror key,
+    # nobody can push a tag and ship a version to npm without that click.
+    environment: npm
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          registry-url: 'https://registry.npmjs.org'
+
+      # --ignore-scripts: the n8n tooling pulls native modules (isolated-vm…) the build does not need.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Check tag matches package.json
+        run: test "$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+
+      - name: Test
+        run: npm test
+
+      # Official n8n path: in GitHub Actions it lints, builds and runs `npm publish` with provenance.
+      - name: Release
+        run: npm run release
