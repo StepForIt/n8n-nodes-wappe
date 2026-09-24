@@ -1,7 +1,12 @@
 import { NodeConnectionTypes, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
 import { getAccounts, getGroups, getTemplates } from './loadOptions';
 import { groupFields, groupOperations } from './resources/group';
-import { accountOperations, templateOperations } from './resources/lookup';
+import {
+	accountOperations,
+	chatOperations,
+	templateOperations,
+	usageOperations,
+} from './resources/lookup';
 import { messageFields, messageOperations } from './resources/message';
 
 export class Wappe implements INodeType {
@@ -12,7 +17,7 @@ export class Wappe implements INodeType {
 		group: ['output'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Send WhatsApp messages and manage groups with Wappe',
+		description: 'Send and read WhatsApp messages, manage groups and follow usage with Wappe',
 		defaults: { name: 'Wappe' },
 		usableAsTool: true,
 		inputs: [NodeConnectionTypes.Main],
@@ -30,9 +35,11 @@ export class Wappe implements INodeType {
 				noDataExpression: true,
 				options: [
 					{ name: 'Account', value: 'account' },
+					{ name: 'Chat', value: 'chat' },
 					{ name: 'Group', value: 'group' },
 					{ name: 'Message', value: 'message' },
 					{ name: 'Template', value: 'template' },
+					{ name: 'Usage', value: 'usage' },
 				],
 				default: 'message',
 			},
@@ -40,6 +47,8 @@ export class Wappe implements INodeType {
 			...groupOperations,
 			...accountOperations,
 			...templateOperations,
+			...chatOperations,
+			...usageOperations,
 			{
 				displayName: 'Account Name or ID',
 				name: 'session',
@@ -47,7 +56,7 @@ export class Wappe implements INodeType {
 				typeOptions: { loadOptionsMethod: 'getAccounts' },
 				required: true,
 				default: '',
-				displayOptions: { show: { resource: ['message', 'group'] } },
+				displayOptions: { show: { resource: ['message', 'group', 'chat'] } },
 				description:
 					'Account the message is sent from. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},

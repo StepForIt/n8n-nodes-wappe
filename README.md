@@ -26,19 +26,25 @@ n8n checks the credential with `GET /api/me`. The key is sent in the `X-Api-Key`
 
 | Resource | Operation | Wappe endpoint |
 | --- | --- | --- |
-| Message | Send Text | `POST /api/trigger` |
-| Message | Send Template (with variables and attachment) | `POST /api/trigger` |
-| Group | Create (members, description, welcome message) | `POST /api/group/create` |
-| Group | Add Members / Remove Members | `POST /api/group/participants` |
-| Group | Promote Admins / Demote Admins | `POST /api/group/admins` |
-| Group | Update (name, description) | `PATCH /api/group` |
-| Group | Get Invite Link | `GET /api/group/invite` |
-| Group | Get Many | `GET /api/groups` |
+| Message | Send Text · Send Template (with variables) | `POST /api/v1/messages` |
+| Message | Send Media (URL or binary: photo, video, audio, document) | `POST /api/v1/messages` |
+| Message | Send Voice Note (any audio, converted to a WhatsApp voice note) | `POST /api/v1/messages/voice` |
+| Message | React · Edit · Delete | `POST /api/v1/messages/react` · `PATCH` / `DELETE /api/v1/messages` |
+| Message | Get Many (conversation history, paginated) | `GET /api/v1/messages` |
+| Message | Download Media (binary, with file name and type) | `GET /api/v1/messages/media` |
+| Message | Transcribe Voice Note (counts transcription minutes, returns usage) | `POST /api/v1/messages/transcribe` |
+| Chat | Mark as Read (WhatsApp read receipt) | `POST /api/v1/chats/read` |
+| Group | Create · Add / Remove Members · Promote / Demote Admins · Update · Get Invite Link · Get Many | `/api/group/*`, `GET /api/groups` |
 | Template | Get Many | `GET /api/templates` |
 | Account | Get Many | `GET /api/me` |
+| Usage | Get (transcription minutes and WAPPE AI tokens of the month) | `GET /api/v1/usage` |
+
+Every send can quote a message (**Options → Reply To Message ID**). Read operations have a
+**Simplify** switch (on by default) that keeps only the useful fields — smaller items, fewer tokens
+for AI steps.
 
 The account, template and group fields show dropdown lists read from your instance.
-The recipient can be an international phone number (`33612345678`), a WhatsApp ID (`…@c.us`),
+The chat can be an international phone number (`33612345678`), a WhatsApp ID (`…@c.us`),
 a group (`…@g.us`) or an Instagram recipient (`ig:…`).
 Group operations work on WhatsApp Web accounts. Accounts on the official Meta API don't have groups.
 

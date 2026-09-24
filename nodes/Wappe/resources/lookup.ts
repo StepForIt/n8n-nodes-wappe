@@ -49,3 +49,73 @@ export const templateOperations: INodeProperties[] = [
 		default: 'getAll',
 	},
 ];
+
+export const chatOperations: INodeProperties[] = [
+	{
+		displayName: 'Operation',
+		name: 'operation',
+		type: 'options',
+		noDataExpression: true,
+		displayOptions: { show: { resource: ['chat'] } },
+		options: [
+			{
+				name: 'Mark as Read',
+				value: 'markRead',
+				action: 'Mark a chat as read',
+				description: 'Send the WhatsApp read receipt (blue ticks) for the latest received messages',
+				routing: {
+					request: {
+						method: 'POST',
+						url: '/api/v1/chats/read',
+						body: { session: '={{$parameter.session}}', to: '={{$parameter.chatTarget}}' },
+					},
+				},
+			},
+		],
+		default: 'markRead',
+	},
+	{
+		displayName: 'Chat',
+		name: 'chatTarget',
+		type: 'string',
+		required: true,
+		default: '',
+		placeholder: '33612345678',
+		displayOptions: { show: { resource: ['chat'] } },
+		description: 'International phone number or chat ID (…@c.us, …@g.us)',
+	},
+];
+
+export const usageOperations: INodeProperties[] = [
+	{
+		displayName: 'Operation',
+		name: 'operation',
+		type: 'options',
+		noDataExpression: true,
+		displayOptions: { show: { resource: ['usage'] } },
+		options: [
+			{
+				name: 'Get',
+				value: 'get',
+				action: 'Get this month usage',
+				description: 'Transcription minutes and WAPPE AI tokens used this month',
+				routing: {
+					request: {
+						method: 'GET',
+						url: '/api/v1/usage',
+						qs: { simple: '={{$parameter.usageSimplify}}' },
+					},
+				},
+			},
+		],
+		default: 'get',
+	},
+	{
+		displayName: 'Simplify',
+		name: 'usageSimplify',
+		type: 'boolean',
+		default: true,
+		displayOptions: { show: { resource: ['usage'] } },
+		description: 'Whether to return a simplified version of the response instead of the raw data',
+	},
+];

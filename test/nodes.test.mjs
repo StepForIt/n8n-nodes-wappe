@@ -28,6 +28,8 @@ const visibleFor = (prop, resource, operation) => {
 	if (show.operation && !show.operation.includes(operation)) return false;
 	return true;
 };
+// Champs posés par un preSend (pièce jointe lue dans le nœud) : invisibles dans la description statique.
+const PRESEND_FIELDS = { sendMedia: ['media'], sendVoice: ['audio'] };
 const exprKey = (v) => /^=\{\{\s*\$parameter\.(\w+)\s*\}\}$/.exec(String(v))?.[1];
 
 function operations(description) {
@@ -39,7 +41,7 @@ function operations(description) {
 			const fields = description.properties.filter(
 				(p) => p.name !== 'operation' && visibleFor(p, resource, opt.value),
 			);
-			const sent = new Set(Object.keys(opt.routing.request.body ?? {}));
+			const sent = new Set([...Object.keys(opt.routing.request.body ?? {}), ...(PRESEND_FIELDS[opt.value] ?? [])]);
 			for (const f of fields) {
 				if (f.routing?.send?.type === 'body') sent.add(f.routing.send.property);
 				for (const sub of f.options ?? []) {
@@ -60,6 +62,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 		OPS.map((o) => `${o.resource}:${o.operation}`).sort(),
 		[
 			'account:getAll',
+			'chat:markRead',
 			'group:addMembers',
 			'group:create',
 			'group:demoteAdmins',
@@ -68,9 +71,18 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 			'group:promoteAdmins',
 			'group:removeMembers',
 			'group:update',
+			'message:deleteMessage',
+			'message:downloadMedia',
+			'message:editMessage',
+			'message:getAll',
+			'message:react',
+			'message:sendMedia',
 			'message:sendTemplate',
 			'message:sendText',
+			'message:sendVoice',
+			'message:transcribe',
 			'template:getAll',
+			'usage:get',
 		],
 	);
 	for (const o of OPS) {
@@ -290,4 +302,19 @@ test('signature : comparaison stricte', () => {
 	assert.equal(isValidSignature('{}', sig, 'k'), true);
 	assert.equal(isValidSignature('{} ', sig, 'k'), false);
 	assert.equal(isValidSignature('{}', '', 'k'), false);
+});
+
+test('pièce jointe : URL ou binaire n8n posé dans le corps (media, ou audio pour un vocal)', async () => {
+	const { attachMedia } = require('../dist/nodes/Wappe/binary.js');
+	const ctx = (params) => ({
+		getNodeParameter: (name) => params[name],
+		helpers: {
+			assertBinaryData: () => ({ fileName: 'facture.pdf', mimeType: 'application/pdf' }),
+			getBinaryDataBuffer: async () => Buffer.from('%PDF-1.4'),
+		},
+	});
+	const byUrl = await attachMedia.call(ctx({ operation: 'sendMedia', mediaSource: 'url', mediaUrl: 'https://x.fr/a.pdf' }), { body: { session: 's' } });
+	assert.deepEqual(byUrl.body, { session: 's', media: { url: 'https://x.fr/a.pdf' } });
+	const byBinary = await attachMedia.call(ctx({ operation: 'sendVoice', mediaSource: 'binary', binaryPropertyName: 'data' }), { body: {} });
+	assert.deepEqual(byBinary.body.audio, { data: Buffer.from('%PDF-1.4').toString('base64'), filename: 'facture.pdf', mimetype: 'application/pdf' });
 });
