@@ -5,8 +5,13 @@
 # (packages/n8n-nodes-wappe) and the mirror job pushes both the code and the release tags here.
 # Do not commit to this repository directly: the next sync overwrites it.
 #
-# npm setup (once): package settings → Trusted Publishers → GitHub Actions,
-# repository StepForIt/n8n-nodes-wappe, workflow publish.yml, environment npm.
+# npm authentication, in order of preference:
+#   - Trusted Publishing (OIDC, no secret): npm package settings → Trusted Publishers → GitHub
+#     Actions, repository StepForIt/n8n-nodes-wappe, workflow publish.yml, environment npm.
+#     Only possible once the package exists on npm.
+#   - NPM_TOKEN (first release): granular npm token limited to publishing this package, stored as
+#     a secret of the `npm` ENVIRONMENT (only readable after the approval). Delete it once
+#     Trusted Publishing is configured.
 name: Publish
 
 on:
@@ -30,7 +35,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          registry-url: 'https://registry.npmjs.org'
 
       # --ignore-scripts: the n8n tooling pulls native modules (isolated-vm…) the build does not need.
       - name: Install dependencies
@@ -44,4 +48,8 @@ jobs:
 
       # Official n8n path: in GitHub Actions it lints, builds and runs `npm publish` with provenance.
       - name: Release
-        run: npm run release
+        run: |
+          [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm run release
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
