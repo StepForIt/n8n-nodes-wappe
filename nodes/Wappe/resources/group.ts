@@ -1,10 +1,11 @@
 import type { INodeProperties } from 'n8n-workflow';
+import { locator, rl } from '../locators';
 
 const forGroup = { resource: ['group'] };
 const onGroup = (...operation: string[]) => ({ show: { ...forGroup, operation } });
 
-const SESSION = '={{$parameter.session}}';
-const CHAT = '={{$parameter.chatId}}';
+const SESSION = rl('session');
+const CHAT = rl('chatId');
 const NUMBERS = '={{$parameter.numbers}}';
 
 export const groupOperations: INodeProperties[] = [
@@ -113,13 +114,11 @@ export const groupOperations: INodeProperties[] = [
 ];
 
 export const groupFields: INodeProperties[] = [
-	{
-		displayName: 'Group Name or ID',
+	locator({
+		displayName: 'Group',
 		name: 'chatId',
-		type: 'options',
-		typeOptions: { loadOptionsMethod: 'getGroups', loadOptionsDependsOn: ['session'] },
-		required: true,
-		default: '',
+		search: 'searchGroups',
+		idPlaceholder: '1203630…@g.us',
 		displayOptions: onGroup(
 			'addMembers',
 			'removeMembers',
@@ -128,9 +127,7 @@ export const groupFields: INodeProperties[] = [
 			'update',
 			'getInviteLink',
 		),
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
+	}),
 	{
 		displayName: 'Group Name',
 		name: 'name',

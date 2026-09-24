@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const { Wappe } = require('../dist/nodes/Wappe/Wappe.node.js');
 const { WappeTrigger, isValidSignature } = require('../dist/nodes/WappeTrigger/WappeTrigger.node.js');
 const { WappeApi } = require('../dist/credentials/WappeApi.credentials.js');
-const { getAccounts, getGroups, getTemplates } = require('../dist/nodes/Wappe/loadOptions.js');
+const { searchAccounts, searchGroups, searchTemplates, searchContacts, searchStages } = require('../dist/nodes/Wappe/listSearch.js');
 
 const API_DOCS = join(HERE, '..', '..', '..', 'app', 'src', 'api-docs.js');
 
@@ -30,7 +30,8 @@ const visibleFor = (prop, resource, operation) => {
 };
 // Champs posés par un preSend (pièce jointe lue dans le nœud) : invisibles dans la description statique.
 const PRESEND_FIELDS = { sendMedia: ['media'], sendVoice: ['audio'] };
-const exprKey = (v) => /^=\{\{\s*\$parameter\.(\w+)\s*\}\}$/.exec(String(v))?.[1];
+const exprKey = (v) => /\$parameter\.(\w+)/.exec(String(v))?.[1];
+const isExpr = (v) => String(v).startsWith('=');
 
 function operations(description) {
 	const out = [];
@@ -63,6 +64,9 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 		[
 			'account:getAll',
 			'chat:markRead',
+			'contact:get',
+			'contact:getAll',
+			'contact:update',
 			'group:addMembers',
 			'group:create',
 			'group:demoteAdmins',
@@ -71,6 +75,9 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 			'group:promoteAdmins',
 			'group:removeMembers',
 			'group:update',
+			'list:addMember',
+			'list:getAll',
+			'list:removeMember',
 			'message:deleteMessage',
 			'message:downloadMedia',
 			'message:editMessage',
@@ -81,6 +88,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 			'message:sendText',
 			'message:sendVoice',
 			'message:transcribe',
+			'pipeline:getAll',
 			'template:getAll',
 			'usage:get',
 		],
@@ -88,6 +96,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 	for (const o of OPS) {
 		assert.ok(o.option.routing.request.url.startsWith('/api/'), `${o.operation} : url relative`);
 		for (const [k, v] of Object.entries({ ...o.option.routing.request.body, ...o.option.routing.request.qs })) {
+			if (!isExpr(v)) continue;   // valeur fixe (ex. action: 'add')
 			const param = exprKey(v);
 			assert.ok(param, `${o.operation}.${k} doit lire un paramètre du nœud`);
 			assert.ok(
@@ -173,24 +182,26 @@ function fakeContext({ params = {}, responses = {}, staticData = {}, webhookUrl 
 	return ctx;
 }
 
-test('listes déroulantes : comptes, modèles, groupes (dépend du compte)', async () => {
+test('sélecteurs : recherche comptes, modèles, groupes (dépend du compte), contacts paginés, étapes', async () => {
 	const ctx = fakeContext({
-		params: { session: 'shop' },
+		params: { session: { __rl: true, mode: 'list', value: 'shop' } },
 		responses: {
-			'GET /api/me': { accounts: [{ name: 'shop', label: 'Boutique', status: 'WORKING' }, { name: 'perso', status: 'SCAN_QR_CODE' }] },
-			'GET /api/templates': { templates: [{ id: 't2', name: 'Relance' }, { id: 't1', name: 'Bienvenue' }] },
-			'GET /api/groups': { groups: [{ chatId: '1@g.us', name: 'Club' }] },
+			'GET /api/v1/accounts': { accounts: [{ name: 'shop', label: 'Boutique', status: 'WORKING' }, { name: 'perso', label: 'perso', status: 'SCAN_QR_CODE' }] },
+			'GET /api/v1/templates': { templates: [{ id: 't1', name: 'Bienvenue' }] },
+			'GET /api/v1/groups': { groups: [{ chatId: '1@g.us', name: 'Club' }] },
+			'GET /api/v1/contacts': { contacts: [{ chatId: '336@c.us', name: 'Camille', phone: '336' }], nextCursor: '50' },
+			'GET /api/v1/pipelines': { pipelines: [{ id: 'p1', name: 'Ventes', stages: [{ id: 's1', name: 'Devis' }] }, { id: 'p2', name: 'SAV', stages: [{ id: 's2', name: 'Ouvert' }] }] },
 		},
 	});
-	assert.deepEqual(
-		(await getAccounts.call(ctx)).map((o) => [o.name, o.value]),
-		[['Boutique', 'shop'], ['perso (SCAN_QR_CODE)', 'perso']],
-	);
-	assert.deepEqual((await getTemplates.call(ctx)).map((o) => o.value), ['t1', 't2'], 'triés par nom');
-	assert.deepEqual(await getGroups.call(ctx), [{ name: 'Club', value: '1@g.us' }]);
-	const groupsCall = ctx.calls.find((c) => c.url.endsWith('/api/groups'));
-	assert.equal(groupsCall.url, 'https://wappe.test/api/groups', 'slash final de l’URL retiré');
-	assert.deepEqual(groupsCall.qs, { session: 'shop' });
+	assert.deepEqual((await searchAccounts.call(ctx, 'bou')).results, [{ name: 'Boutique', value: 'shop' }, { name: 'perso (SCAN_QR_CODE)', value: 'perso' }]);
+	assert.deepEqual((await searchTemplates.call(ctx)).results, [{ name: 'Bienvenue', value: 't1' }]);
+	assert.deepEqual((await searchGroups.call(ctx, 'cl')).results, [{ name: 'Club', value: '1@g.us' }]);
+	const groupsCall = ctx.calls.find((c) => c.url.endsWith('/api/v1/groups'));
+	assert.deepEqual(groupsCall.qs, { session: 'shop', search: 'cl' }, 'le compte vient du sélecteur');
+	const contacts = await searchContacts.call(ctx, 'cam');
+	assert.deepEqual(contacts, { results: [{ name: 'Camille (+336)', value: '336@c.us' }], paginationToken: '50' });
+	assert.deepEqual((await searchStages.call(ctx)).results.map((r) => r.name), ['Ventes › Devis', 'SAV › Ouvert']);
+	assert.equal(ctx.calls[0].url, 'https://wappe.test/api/v1/accounts', 'slash final de l’URL retiré');
 	assert.ok(ctx.calls.every((c) => c.credType === 'wappeApi'));
 });
 

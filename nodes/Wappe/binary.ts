@@ -57,3 +57,19 @@ export async function toBinaryItem(
 		},
 	];
 }
+
+/**
+ * Splits `{ contacts: [...] }` into one item per contact. With Return All, n8n's offset pagination
+ * reads `contacts` itself after this hook: the response must then pass through untouched.
+ */
+export async function splitContacts(
+	this: IExecuteSingleFunctions,
+	items: INodeExecutionData[],
+): Promise<INodeExecutionData[]> {
+	if (this.getNodeParameter('returnAll', false)) return items;
+	return items.flatMap((item) =>
+		Array.isArray(item.json.contacts)
+			? (item.json.contacts as IDataObject[]).map((json) => ({ json }))
+			: [item],
+	);
+}

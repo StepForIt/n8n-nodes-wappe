@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- New resources: **Contact** (Get, Get Many with search / list / stage filters and Return All,
+  Update: name, language, pipeline stage, custom fields - only what you set), **List** (Get Many,
+  Add Chat, Remove Chat), **Pipeline** (Get Many, with stages and custom fields).
+- Account, chat, contact, template, group and list fields are now **resource locators**: pick from a
+  searchable list, or set an ID, or a name (account label, template name, list name). Values saved by
+  earlier versions keep working.
+
 ## 0.2.0
 
 - All message operations now use the stable Wappe API v1 (`/api/v1/*`).

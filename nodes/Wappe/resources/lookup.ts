@@ -1,4 +1,5 @@
 import type { INodeProperties } from 'n8n-workflow';
+import { locator, rl } from '../locators';
 
 export const accountOperations: INodeProperties[] = [
 	{
@@ -67,23 +68,20 @@ export const chatOperations: INodeProperties[] = [
 					request: {
 						method: 'POST',
 						url: '/api/v1/chats/read',
-						body: { session: '={{$parameter.session}}', to: '={{$parameter.chatTarget}}' },
+						body: { session: rl('session'), to: rl('chatTarget') },
 					},
 				},
 			},
 		],
 		default: 'markRead',
 	},
-	{
+	locator({
 		displayName: 'Chat',
 		name: 'chatTarget',
-		type: 'string',
-		required: true,
-		default: '',
-		placeholder: '33612345678',
+		search: 'searchContacts',
+		idPlaceholder: '33612345678',
 		displayOptions: { show: { resource: ['chat'] } },
-		description: 'International phone number or chat ID (…@c.us, …@g.us)',
-	},
+	}),
 ];
 
 export const usageOperations: INodeProperties[] = [

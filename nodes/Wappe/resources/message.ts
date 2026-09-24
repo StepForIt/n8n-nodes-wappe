@@ -1,11 +1,12 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { attachMedia, toBinaryItem } from '../binary';
+import { locator, rl } from '../locators';
 
 const forMessage = { resource: ['message'] };
 const onMessage = (...operation: string[]) => ({ show: { ...forMessage, operation } });
 
-const SESSION = '={{$parameter.session}}';
-const TO = '={{$parameter.target}}';
+const SESSION = rl('session');
+const TO = rl('target');
 const MSG = '={{$parameter.msgId}}';
 const SIMPLE = '={{$parameter.simplify}}';
 const sendBody = { session: SESSION, to: TO };
@@ -149,17 +150,15 @@ export const messageOperations: INodeProperties[] = [
 ];
 
 export const messageFields: INodeProperties[] = [
-	{
+	locator({
 		displayName: 'Chat',
 		name: 'target',
-		type: 'string',
-		required: true,
-		default: '',
-		placeholder: '33612345678',
+		search: 'searchContacts',
+		idPlaceholder: '33612345678 or 1203630…@g.us',
 		displayOptions: { show: forMessage },
 		description:
-			'International phone number, WhatsApp ID (…@c.us), group ID (…@g.us) or Instagram recipient (ig:…)',
-	},
+			'Contact or group. By ID: international phone number, WhatsApp ID (…@c.us), group ID (…@g.us) or Instagram recipient (ig:…).',
+	}),
 	{
 		displayName: 'Text',
 		name: 'text',
@@ -172,16 +171,17 @@ export const messageFields: INodeProperties[] = [
 		routing: { send: { type: 'body', property: 'text' } },
 	},
 	{
-		displayName: 'Template Name or ID',
-		name: 'templateId',
-		type: 'options',
-		typeOptions: { loadOptionsMethod: 'getTemplates' },
-		required: true,
-		default: '',
-		displayOptions: onMessage('sendTemplate'),
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-		routing: { send: { type: 'body', property: 'templateId' } },
+		...locator({
+			displayName: 'Template',
+			name: 'templateId',
+			search: 'searchTemplates',
+			idPlaceholder: 'tpl_…',
+			namePlaceholder: 'Welcome',
+			displayOptions: onMessage('sendTemplate'),
+		}),
+		routing: {
+			send: { type: 'body', property: 'templateId', value: '={{ $value?.value ?? $value }}' },
+		},
 	},
 	{
 		displayName: 'Variables',

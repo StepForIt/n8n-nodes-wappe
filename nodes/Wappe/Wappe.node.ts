@@ -1,5 +1,15 @@
 import { NodeConnectionTypes, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
-import { getAccounts, getGroups, getTemplates } from './loadOptions';
+import {
+	getStages,
+	searchAccounts,
+	searchContacts,
+	searchGroups,
+	searchLists,
+	searchStages,
+	searchTemplates,
+} from './listSearch';
+import { accountLocator } from './locators';
+import { contactOperations, listOperations, pipelineOperations } from './resources/crm';
 import { groupFields, groupOperations } from './resources/group';
 import {
 	accountOperations,
@@ -36,8 +46,11 @@ export class Wappe implements INodeType {
 				options: [
 					{ name: 'Account', value: 'account' },
 					{ name: 'Chat', value: 'chat' },
+					{ name: 'Contact', value: 'contact' },
 					{ name: 'Group', value: 'group' },
+					{ name: 'List', value: 'list' },
 					{ name: 'Message', value: 'message' },
+					{ name: 'Pipeline', value: 'pipeline' },
 					{ name: 'Template', value: 'template' },
 					{ name: 'Usage', value: 'usage' },
 				],
@@ -49,23 +62,28 @@ export class Wappe implements INodeType {
 			...templateOperations,
 			...chatOperations,
 			...usageOperations,
-			{
-				displayName: 'Account Name or ID',
-				name: 'session',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getAccounts' },
-				required: true,
-				default: '',
-				displayOptions: { show: { resource: ['message', 'group', 'chat'] } },
-				description:
-					'Account the message is sent from. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
-			},
+			...contactOperations.slice(0, 1),
+			...listOperations.slice(0, 1),
+			...pipelineOperations,
+			accountLocator({ show: { resource: ['message', 'group', 'chat'] } }),
+			accountLocator({ show: { resource: ['contact'], operation: ['get', 'update'] } }),
+			accountLocator({ show: { resource: ['list'], operation: ['addMember', 'removeMember'] } }),
+			...contactOperations.slice(1),
+			...listOperations.slice(1),
 			...messageFields,
 			...groupFields,
 		],
 	};
 
 	methods = {
-		loadOptions: { getAccounts, getGroups, getTemplates },
+		loadOptions: { getStages },
+		listSearch: {
+			searchAccounts,
+			searchContacts,
+			searchGroups,
+			searchLists,
+			searchStages,
+			searchTemplates,
+		},
 	};
 }

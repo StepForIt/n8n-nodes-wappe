@@ -35,6 +35,9 @@ n8n checks the credential with `GET /api/me`. The key is sent in the `X-Api-Key`
 | Message | Transcribe Voice Note (counts transcription minutes, returns usage) | `POST /api/v1/messages/transcribe` |
 | Chat | Mark as Read (WhatsApp read receipt) | `POST /api/v1/chats/read` |
 | Group | Create · Add / Remove Members · Promote / Demote Admins · Update · Get Invite Link · Get Many | `/api/group/*`, `GET /api/groups` |
+| Contact | Get · Get Many (search, list, stage filters) · Update (name, language, stage, custom fields) | `GET` / `PATCH /api/v1/contact`, `GET /api/v1/contacts` |
+| List | Get Many · Add Chat · Remove Chat | `GET /api/v1/lists`, `POST /api/v1/lists/members` |
+| Pipeline | Get Many (stages and custom fields) | `GET /api/v1/pipelines` |
 | Template | Get Many | `GET /api/templates` |
 | Account | Get Many | `GET /api/me` |
 | Usage | Get (transcription minutes and WAPPE AI tokens of the month) | `GET /api/v1/usage` |
@@ -43,7 +46,9 @@ Every send can quote a message (**Options → Reply To Message ID**). Read opera
 **Simplify** switch (on by default) that keeps only the useful fields — smaller items, fewer tokens
 for AI steps.
 
-The account, template and group fields show dropdown lists read from your instance.
+Account, chat, contact, template, group and list fields are **resource locators**: pick from a
+searchable list read from your instance, or set an ID, or a name (account label, template name,
+list name) - handy in expressions.
 The chat can be an international phone number (`33612345678`), a WhatsApp ID (`…@c.us`),
 a group (`…@g.us`) or an Instagram recipient (`ig:…`).
 Group operations work on WhatsApp Web accounts. Accounts on the official Meta API don't have groups.
