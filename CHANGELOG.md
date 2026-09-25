@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Message → Get Many: **Cursor** field (`nextCursor` of the previous page). Paging by timestamp
+  (`Before` / `nextBefore`) could skip messages sent in the same second.
+
 ## 0.3.0
 
 - New resources: **Contact** (Get, Get Many with search / list / stage filters and Return All,

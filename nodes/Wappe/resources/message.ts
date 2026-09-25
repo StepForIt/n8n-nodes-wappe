@@ -77,6 +77,7 @@ export const messageOperations: INodeProperties[] = [
 							chatId: TO,
 							limit: '={{$parameter.limit}}',
 							before: '={{$parameter.before}}',
+							cursor: '={{$parameter.cursor}}',
 							simple: SIMPLE,
 						},
 					},
@@ -316,7 +317,15 @@ export const messageFields: INodeProperties[] = [
 		default: 0,
 		displayOptions: onMessage('getAll'),
 		description:
-			'Only messages at or before this timestamp (ms). Use nextBefore from a previous call to page back; 0 = latest.',
+			'Only messages at or before this timestamp (ms); 0 = latest. Prefer Cursor: a timestamp alone can skip messages sent in the same second.',
+	},
+	{
+		displayName: 'Cursor',
+		name: 'cursor',
+		type: 'string',
+		default: '',
+		displayOptions: onMessage('getAll'),
+		description: 'The nextCursor of a previous call, to read the page before it. Empty = latest.',
 	},
 	{
 		displayName: 'Simplify',
