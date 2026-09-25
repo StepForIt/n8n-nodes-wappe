@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+- New **Filters → Reaction Emojis** on the Wappe Trigger (Message Reaction): trigger only for the
+  listed emojis (`👍, ❤️`). Skin tone and emoji variant are ignored (👍🏽 matches 👍). A removed
+  reaction never matches. Applied by Wappe, so other reactions don't run the workflow.
+
 ## 0.6.0
 
 - **Breaking, server side** (Wappe API since 2026-09-25): opening a new WhatsApp conversation

@@ -85,6 +85,7 @@ type Filters = {
 	lists?: { list?: Array<{ value?: { value?: string } | string }> };
 	types?: string[];
 	sources?: string[];
+	emojis?: string;
 	text?: string;
 	textOperation?: string;
 	caseSensitive?: boolean;
@@ -104,6 +105,10 @@ export function subscriptionOptions(param: (name: string, fallback?: unknown) =>
 	}
 	if (f.types?.length) filters.types = f.types;
 	if (f.sources?.length) filters.sources = f.sources;
+	const emojis = String(f.emojis ?? '')
+		.split(/[\s,]+/)
+		.filter(Boolean);
+	if (emojis.length) filters.emojis = emojis;
 	return {
 		events: param('events', ['message.received']) as string[],
 		filters,
@@ -271,6 +276,15 @@ export class WappeTrigger implements INodeType {
 							{ name: 'Video', value: 'video' },
 							{ name: 'Voice Note', value: 'voice' },
 						],
+					},
+					{
+						displayName: 'Reaction Emojis',
+						name: 'emojis',
+						type: 'string',
+						default: '',
+						placeholder: '👍, ❤️',
+						description:
+							'Message Reaction only: trigger only for these emojis, separated by commas or spaces (skin tone ignored). A removed reaction never matches. Empty: all reactions.',
 					},
 					{
 						displayName: 'Sent From',

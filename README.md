@@ -103,7 +103,8 @@ Group operations work on WhatsApp Web accounts. Accounts on the official Meta AP
 
 **Filters** are applied by Wappe *before* sending, so a filtered-out event never runs the workflow:
 accounts, lists (any / all / none, picked from the list, by ID or by name), groups (exclude / include /
-only), text (contains / starts with / regex), message type, and where a message was sent from.
+only), text (contains / starts with / regex), message type, where a message was sent from, and
+reaction emojis (`👍, ❤️`: skin tone ignored, a removed reaction never matches).
 A list set by name is resolved when the workflow is activated: renaming it later changes nothing, and
 activation fails with a clear message if it does not exist.
 
