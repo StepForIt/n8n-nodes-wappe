@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- New **Wappe OAuth2 API** credential (authorization code + PKCE): give n8n limited permissions
+  (scopes) instead of the full-access API key, revocable from Wappe's Developers page. Authorization
+  and token URLs are derived from the instance URL.
+- **Authentication** field on the Wappe and Wappe Trigger nodes: API Key (default, unchanged) or OAuth2.
+
 ## 0.4.0
 
 - **Wappe Trigger 1.1**: several events at once - Message Received, Message Sent (with its source:

@@ -11,7 +11,7 @@ import {
 	type IWebhookResponseData,
 	type JsonObject,
 } from 'n8n-workflow';
-import { wappeApiRequest } from '../Wappe/transport';
+import { authenticationProperty, wappeApiRequest, wappeCredentials } from '../Wappe/transport';
 import { getAccounts, searchLists } from '../Wappe/listSearch';
 import { locator } from '../Wappe/locators';
 
@@ -131,7 +131,7 @@ export class WappeTrigger implements INodeType {
 		defaults: { name: 'Wappe Trigger' },
 		inputs: [],
 		outputs: [NodeConnectionTypes.Main],
-		credentials: [{ name: 'wappeApi', required: true }],
+		credentials: wappeCredentials,
 		webhooks: [
 			{
 				name: 'default',
@@ -141,6 +141,7 @@ export class WappeTrigger implements INodeType {
 			},
 		],
 		properties: [
+			authenticationProperty,
 			// ── Version 1 (0.1 to 0.3): one event, groups on/off. Kept for saved workflows. ──
 			{
 				displayName: 'Event',

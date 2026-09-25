@@ -21,6 +21,25 @@ Each Wappe customer has their own instance, so the credential asks for two value
 | **API Key** | Wappe → **Developers** page (turn on the *Developers* module first). Regenerating it there invalidates the old one. |
 
 n8n checks the credential with `GET /api/me`. The key is sent in the `X-Api-Key` header.
+The API key gives **full access** to the instance.
+
+### OAuth2
+
+To give n8n **limited permissions** instead, choose **Authentication → OAuth2** in the node and create a
+**Wappe OAuth2 API** credential:
+
+1. In Wappe → **Developers** → **OAuth applications**, create an application. The n8n Cloud redirect URL
+   (`https://oauth.n8n.cloud/oauth2/callback`) is pre-filled; for self-hosted n8n, add the
+   *OAuth Redirect URL* shown in the n8n credential.
+2. Copy the **Client ID** and **Client Secret** (shown once) into the credential, with your **Instance URL**.
+3. Pick the **Permissions** (all by default): send messages, read conversations, read / update contacts,
+   lists, WhatsApp groups, webhooks (Trigger), usage.
+4. **Connect my account**: a Wappe administrator approves the permissions on the consent screen.
+
+An operation outside the granted permissions fails with `403 insufficient_scope`. Access can be revoked
+anytime in Wappe → Developers → **Connected applications** (the Trigger's subscriptions go with it).
+The Trigger needs *Webhooks*, plus *Read conversations* for message and call events and *Read contacts*
+for contact events.
 
 ## Operations
 

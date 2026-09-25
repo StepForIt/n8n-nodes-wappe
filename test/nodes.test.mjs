@@ -17,9 +17,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const { Wappe } = require('../dist/nodes/Wappe/Wappe.node.js');
 const { WappeTrigger, isValidSignature } = require('../dist/nodes/WappeTrigger/WappeTrigger.node.js');
 const { WappeApi } = require('../dist/credentials/WappeApi.credentials.js');
+const { WappeOAuth2Api } = require('../dist/credentials/WappeOAuth2Api.credentials.js');
 const { searchAccounts, searchGroups, searchTemplates, searchContacts, searchStages } = require('../dist/nodes/Wappe/listSearch.js');
 
 const API_DOCS = join(HERE, '..', '..', '..', 'app', 'src', 'api-docs.js');
+const OAUTH_SCOPES = join(HERE, '..', '..', '..', 'app', 'src', 'oauth-scopes.js');
 
 // ── Lecture des opérations déclaratives ──
 const visibleFor = (prop, resource, operation) => {
@@ -148,6 +150,46 @@ test('credential : en-tête X-Api-Key, test sur GET /api/me, URL sans slash fina
 		true,
 		'la clé est un champ mot de passe',
 	);
+});
+
+test('credential OAuth2 : PKCE, URLs dérivées de l\'instance, tous les droits par défaut', () => {
+	const cred = new WappeOAuth2Api();
+	assert.equal(cred.name, 'wappeOAuth2Api');
+	assert.deepEqual(cred.extends, ['oAuth2Api']);
+	const prop = (name) => cred.properties.find((p) => p.name === name);
+	assert.equal(prop('grantType').default, 'pkce');
+	assert.match(prop('authUrl').default, /\$self\["url"\].*\/oauth\/authorize$/);
+	assert.match(prop('accessTokenUrl').default, /\$self\["url"\].*\/oauth\/token$/);
+	assert.deepEqual(prop('scopes').default, prop('scopes').options.map((o) => o.value));
+	assert.equal(cred.test.request.url, '/api/me');
+	for (const node of [new Wappe(), new WappeTrigger()]) {
+		const auth = node.description.properties.find((p) => p.name === 'authentication');
+		assert.equal(auth?.default, 'apiKey', `${node.description.name} : clé API par défaut`);
+		assert.deepEqual(node.description.credentials.map((c) => [c.name, c.displayOptions.show.authentication[0]]), [['wappeApi', 'apiKey'], ['wappeOAuth2Api', 'oAuth2']]);
+	}
+});
+
+test('contrat OAuth2 : scopes du credential = scopes du serveur, chaque opération en exige un', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
+	const { SCOPES, ANY, integrationRoute } = await import(pathToFileURL(OAUTH_SCOPES).href);
+	const offered = new WappeOAuth2Api().properties.find((p) => p.name === 'scopes').options.map((o) => o.value);
+	assert.deepEqual(offered.sort(), Object.keys(SCOPES).sort());
+	// Sans charger le serveur : la table des routes d'intégration suffit (le scope de chaque route
+	// /api/v1 est vérifié côté serveur, test/unit/oauth-scopes.test.mjs).
+	const { openApiSpec, docPublicIds, setScopeResolver } = await import(pathToFileURL(API_DOCS).href);
+	setScopeResolver((m, path) => { const r = integrationRoute(m, path); return r ? (r[3] === 'v1' ? ANY : r[3]) : null; });
+	const spec = openApiSpec({ ids: docPublicIds() });
+	for (const o of OPS) {
+		const { method, url } = o.option.routing.request;
+		const op = spec.paths[url][method.toLowerCase()];
+		assert.ok(Array.isArray(op['x-oauth-scopes']), `${method} ${url} : ouvert à OAuth2`);
+		for (const sc of op['x-oauth-scopes']) assert.ok(offered.includes(sc), `${url} : scope ${sc} proposé par le credential`);
+	}
+});
+
+test('transport : le choix « OAuth2 » appelle avec le credential OAuth2', async () => {
+	const ctx = fakeContext({ params: { authentication: 'oAuth2' }, staticData: { subscriptionId: 'sub_1', secret: 's' }, responses: { 'GET /api/webhooks/subscriptions': { subscriptions: [{ id: 'sub_1', url: 'https://n8n.test/webhook/abc/webhook' }] } } });
+	assert.equal(await new WappeTrigger().webhookMethods.default.checkExists.call(ctx), true);
+	assert.equal(ctx.calls[0].credType, 'wappeOAuth2Api');
 });
 
 // ── Contextes n8n factices ──

@@ -9,6 +9,7 @@ import {
 	searchTemplates,
 } from './listSearch';
 import { accountLocator } from './locators';
+import { authenticationProperty, wappeCredentials } from './transport';
 import { contactOperations, listOperations, pipelineOperations } from './resources/crm';
 import { groupFields, groupOperations } from './resources/group';
 import {
@@ -32,12 +33,13 @@ export class Wappe implements INodeType {
 		usableAsTool: true,
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
-		credentials: [{ name: 'wappeApi', required: true }],
+		credentials: wappeCredentials,
 		requestDefaults: {
 			baseURL: '={{$credentials.url.replace(/\\/+$/, "")}}',
 			headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
 		},
 		properties: [
+			authenticationProperty,
 			{
 				displayName: 'Resource',
 				name: 'resource',
