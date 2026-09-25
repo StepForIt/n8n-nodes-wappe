@@ -21,7 +21,8 @@ Each Wappe customer has their own instance, so the credential asks for two value
 | **API Key** | Wappe → **Developers** page (turn on the *Developers* module first). Regenerating it there invalidates the old one. |
 
 n8n checks the credential with `GET /api/me`. The key is sent in the `X-Api-Key` header.
-The API key gives **full access** to the instance.
+An API key only opens the **permissions** chosen when it was created (the same as OAuth2, below); the
+historical key of the instance keeps full access. An operation outside them fails with `403 insufficient_scope`.
 
 ### OAuth2
 
@@ -52,6 +53,7 @@ for contact events.
 | Message | Get Many (conversation history, paginated) | `GET /api/v1/messages` |
 | Message | Download Media (binary, with file name and type) | `GET /api/v1/messages/media` |
 | Message | Transcribe Voice Note (counts transcription minutes, returns usage) | `POST /api/v1/messages/transcribe` |
+| Message | Get Send Status (after Queue Sending: queued, sent with its message IDs, failed) | `GET /api/v1/jobs/{id}` |
 | Chat | Mark as Read (WhatsApp read receipt) | `POST /api/v1/chats/read` |
 | Group | Create · Add / Remove Members · Promote / Demote Admins · Update · Get Invite Link · Get Many | `/api/group/*`, `GET /api/groups` |
 | Contact | Get · Get Many (search, list, stage filters) · Update (name, language, stage, custom fields) | `GET` / `PATCH /api/v1/contact`, `GET /api/v1/contacts` |
@@ -84,6 +86,21 @@ list name) - handy in expressions.
 The chat can be an international phone number (`33612345678`), a WhatsApp ID (`…@c.us`),
 a group (`…@g.us`) or an Instagram recipient (`ig:…`).
 Group operations work on WhatsApp Web accounts. Accounts on the official Meta API don't have groups.
+
+### Sending pace, limits and bulk sends
+
+Wappe spaces the automatic sends of each WhatsApp account (API, campaigns and automations share the
+same pace: 8 per minute by default, 60 on the official Meta API, with a pause between batches).
+
+- A normal send **waits** up to 15 seconds for the account's next slot. Beyond that, or when the API
+  plan's limits are reached, Wappe answers `429` with a `Retry-After` header (`send_rate`,
+  `rate_limited` or `daily_quota`).
+- For **bulk sends**, turn on **Options → Queue Sending**: each item returns a `jobId` at once and Wappe
+  sends at the account's pace. Follow them with **Get Send Status**, or with the Trigger's
+  **Message Sent** / **Message Failed** events (both carry the `jobId`).
+- To retry a `429` in a normal send, use the node's **Settings → Retry On Fail**. With Queue Sending,
+  retries are safe: the idempotency key returns the same job.
+- Starting a **new conversation** requires **Options → Contact Has Consented** (Wappe refuses cold outreach).
 
 ## Trigger
 

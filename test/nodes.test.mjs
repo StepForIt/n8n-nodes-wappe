@@ -57,6 +57,9 @@ function operations(description) {
 	return out;
 }
 
+// URL à paramètre de chemin (« =/api/v1/jobs/{{$parameter.jobId}} ») → chemin OpenAPI (« /api/v1/jobs/{id} »).
+const specPath = (url) => (String(url).startsWith('=') ? url.slice(1).replace(/\{\{[^}]+\}\}/g, '{id}') : url);
+
 const node = new Wappe();
 const OPS = operations(node.description);
 
@@ -84,6 +87,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 			'message:downloadMedia',
 			'message:editMessage',
 			'message:getAll',
+			'message:getJob',
 			'message:react',
 			'message:sendMedia',
 			'message:sendTemplate',
@@ -96,7 +100,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 		],
 	);
 	for (const o of OPS) {
-		assert.ok(o.option.routing.request.url.startsWith('/api/'), `${o.operation} : url relative`);
+		assert.ok(specPath(o.option.routing.request.url).startsWith('/api/'), `${o.operation} : url relative`);
 		for (const [k, v] of Object.entries({ ...o.option.routing.request.body, ...o.option.routing.request.qs })) {
 			if (!isExpr(v)) continue;   // valeur fixe (ex. action: 'add')
 			const param = exprKey(v);
@@ -113,7 +117,8 @@ test('contrat avec le spec OpenAPI de Wappe (routes, jeton, champs)', { skip: !e
 	const { openApiSpec, docPublicIds } = await import(pathToFileURL(API_DOCS).href);
 	const spec = openApiSpec({ ids: docPublicIds() });
 	for (const o of OPS) {
-		const { method, url } = o.option.routing.request;
+		const { method } = o.option.routing.request;
+		const url = specPath(o.option.routing.request.url);
 		const op = spec.paths[url]?.[method.toLowerCase()];
 		assert.ok(op, `${method} ${url} (${o.resource}:${o.operation}) absent du spec OpenAPI client`);
 		assert.ok(
@@ -179,7 +184,8 @@ test('contrat OAuth2 : scopes du credential = scopes du serveur, chaque opérati
 	setScopeResolver((m, path) => { const r = integrationRoute(m, path); return r ? (r[3] === 'v1' ? ANY : r[3]) : null; });
 	const spec = openApiSpec({ ids: docPublicIds() });
 	for (const o of OPS) {
-		const { method, url } = o.option.routing.request;
+		const { method } = o.option.routing.request;
+		const url = specPath(o.option.routing.request.url);
 		const op = spec.paths[url][method.toLowerCase()];
 		assert.ok(Array.isArray(op['x-oauth-scopes']), `${method} ${url} : ouvert à OAuth2`);
 		for (const sc of op['x-oauth-scopes']) assert.ok(offered.includes(sc), `${url} : scope ${sc} proposé par le credential`);
@@ -453,6 +459,19 @@ test('pièce jointe : URL ou binaire n8n posé dans le corps (media, ou audio po
 	assert.deepEqual(byBinary.body.audio, { data: Buffer.from('%PDF-1.4').toString('base64'), filename: 'facture.pdf', mimetype: 'application/pdf' });
 });
 
+test('envoi en file : clé d\'idempotence stable par exécution, nœud et item ; clé fournie gardée', async () => {
+	const { withIdempotencyKey } = require('../dist/nodes/Wappe/queue.js');
+	const ctx = { getExecutionId: () => 'exec42', getNode: () => ({ name: 'Wappe' }), getItemIndex: () => 3 };
+	const queued = await withIdempotencyKey.call(ctx, { body: { session: 's', async: true } });
+	assert.equal(queued.body.idempotencyKey, 'n8n-exec42-Wappe-3');
+	const again = await withIdempotencyKey.call(ctx, { body: { session: 's', async: true } });
+	assert.equal(again.body.idempotencyKey, queued.body.idempotencyKey, 'un nouvel essai garde la même clé');
+	const own = await withIdempotencyKey.call(ctx, { body: { async: true, idempotencyKey: 'commande-12' } });
+	assert.equal(own.body.idempotencyKey, 'commande-12');
+	const sync = await withIdempotencyKey.call(ctx, { body: { session: 's' } });
+	assert.equal(sync.body.idempotencyKey, undefined, 'pas de clé en envoi direct');
+});
+
 test('consentement : option sur les 4 envois, jamais à true par défaut', () => {
 	for (const op of ['sendText', 'sendTemplate', 'sendMedia', 'sendVoice']) {
 		const o = OPS.find((x) => x.resource === 'message' && x.operation === op);
@@ -475,4 +494,15 @@ test('envoi refusé : message et code de Wappe, pas le texte générique de n8n'
 			(e) => e.message === `refus ${code}` && e.description.startsWith(`Code: ${code}.`) && e.httpCode === String(status),
 		);
 	}
+});
+
+test('envoi refusé par le débit : code, conseil et délai Retry-After', async () => {
+	const { sendResult } = require('../dist/nodes/Wappe/errors.js');
+	const ctx = { getNode: () => ({ name: 'Wappe', type: 'wappe', typeVersion: 1, parameters: {} }) };
+	await assert.rejects(
+		sendResult.call(ctx, [], { statusCode: 429, headers: { 'retry-after': '42' }, body: { error: 'débit', code: 'send_rate', retryAfter: 42 } }),
+		(e) => e.description.includes('Queue Sending') && e.description.endsWith('Retry after 42 s'),
+	);
+	const queued = await sendResult.call(ctx, [], { statusCode: 202, headers: {}, body: { ok: true, jobId: 'q_1', status: 'queued' } });
+	assert.equal(queued[0].json.jobId, 'q_1', 'un 202 (mise en file) est un succès');
 });

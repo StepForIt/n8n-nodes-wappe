@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0
+
+- **Queue Sending** option on Send Text / Template / Media: Wappe returns a `jobId` at once and sends the
+  message at the pace of the WhatsApp account. An **idempotency key** is set automatically (execution,
+  node and item), so a retried call returns the same job instead of sending twice; set your own in
+  **Idempotency Key**.
+- New operation **Message → Get Send Status**: `queued`, `sent` (with its message IDs) or `failed`.
+- Wappe Trigger: new event **Message Failed** (a queued send failed; Wappe retries it daily).
+- Send errors explain the API limits too (`send_rate`, `rate_limited`, `daily_quota`,
+  `insufficient_scope`) and show how long to wait (`Retry-After`).
+- API keys can now be limited to **permissions** (the same as OAuth2), created in Wappe → Developers.
+
 ## 0.8.0
 
 - New **Filters → Reaction Emojis** on the Wappe Trigger (Message Reaction): trigger only for the

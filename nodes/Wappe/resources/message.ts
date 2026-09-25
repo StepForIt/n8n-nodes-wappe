@@ -2,6 +2,7 @@ import type { INodeProperties } from 'n8n-workflow';
 import { attachMedia, toBinaryItem } from '../binary';
 import { sendResult } from '../errors';
 import { locator, rl } from '../locators';
+import { withIdempotencyKey } from '../queue';
 
 const forMessage = { resource: ['message'] };
 const onMessage = (...operation: string[]) => ({ show: { ...forMessage, operation } });
@@ -96,6 +97,13 @@ export const messageOperations: INodeProperties[] = [
 				},
 			},
 			{
+				name: 'Get Send Status',
+				value: 'getJob',
+				action: 'Get the status of a queued send',
+				description: 'Follow a message sent with Queue Sending: queued, sent (with its message IDs) or failed',
+				routing: { request: { method: 'GET', url: '=/api/v1/jobs/{{$parameter.jobId}}' } },
+			},
+			{
 				name: 'React',
 				value: 'react',
 				action: 'React to a message',
@@ -112,7 +120,7 @@ export const messageOperations: INodeProperties[] = [
 				value: 'sendMedia',
 				action: 'Send a media message',
 				description: 'Send a photo, video, audio or document from a URL or from binary data',
-				routing: { send: { preSend: [attachMedia] }, ...sendRouting('/api/v1/messages') },
+				routing: { send: { preSend: [attachMedia, withIdempotencyKey] }, ...sendRouting('/api/v1/messages') },
 			},
 			{
 				name: 'Send Template',
@@ -120,14 +128,14 @@ export const messageOperations: INodeProperties[] = [
 				action: 'Send a template message',
 				description:
 					'Send a template from your Wappe library (with its attachment, if any), filling its variables',
-				routing: sendRouting('/api/v1/messages'),
+				routing: { send: { preSend: [withIdempotencyKey] }, ...sendRouting('/api/v1/messages') },
 			},
 			{
 				name: 'Send Text',
 				value: 'sendText',
 				action: 'Send a text message',
 				description: 'Send a WhatsApp text message from one of your accounts',
-				routing: sendRouting('/api/v1/messages'),
+				routing: { send: { preSend: [withIdempotencyKey] }, ...sendRouting('/api/v1/messages') },
 			},
 			{
 				name: 'Send Voice Note',
@@ -352,6 +360,16 @@ export const messageFields: INodeProperties[] = [
 		description: 'Whether to return a simplified version of the response instead of the raw data',
 	},
 	{
+		displayName: 'Job ID',
+		name: 'jobId',
+		type: 'string',
+		required: true,
+		default: '',
+		placeholder: 'q_…',
+		displayOptions: onMessage('getJob'),
+		description: 'The jobId returned by a send with Queue Sending on',
+	},
+	{
 		displayName: 'Options',
 		name: 'options',
 		type: 'collection',
@@ -360,6 +378,24 @@ export const messageFields: INodeProperties[] = [
 		displayOptions: onMessage('sendText', 'sendTemplate', 'sendMedia'),
 		options: [
 			CONSENT,
+			{
+				displayName: 'Idempotency Key',
+				name: 'idempotencyKey',
+				type: 'string',
+				default: '',
+				description:
+					'With Queue Sending: the same key (per credential, 24 h) returns the same job and sends nothing. Empty: one key per execution, node and item.',
+				routing: { send: { type: 'body', property: 'idempotencyKey' } },
+			},
+			{
+				displayName: 'Queue Sending',
+				name: 'queue',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether to hand the message to Wappe and return at once (a jobId), instead of waiting for it to leave. Wappe sends it at the pace of the WhatsApp account. Use it for bulk sends.',
+				routing: { send: { type: 'body', property: 'async' } },
+			},
 			{
 				displayName: 'Reply To Message ID',
 				name: 'replyTo',
