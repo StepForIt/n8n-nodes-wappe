@@ -52,6 +52,11 @@ const EVENT_OPTIONS = [
 	},
 	{ name: 'Message Edited', value: 'message.edited', description: 'A message was edited' },
 	{
+		name: 'Message Failed',
+		value: 'message.failed',
+		description: 'A queued send (async API call, automation) failed; Wappe retries it daily',
+	},
+	{
 		name: 'Message Reaction',
 		value: 'message.reaction',
 		description: 'A reaction was added or removed',
