@@ -55,19 +55,42 @@ Group operations work on WhatsApp Web accounts. Accounts on the official Meta AP
 
 ## Trigger
 
-**Wappe Trigger** → event **Message Received**.
+**Wappe Trigger** starts the workflow on one or more events:
+
+| Event | When |
+| --- | --- |
+| Message Received | A contact sent a message |
+| Message Sent | A message was sent: from Wappe, an automation, the API or the phone (`source`) |
+| Message Read Receipt | One of your messages went up a level: sent, delivered, read, played (`status`) |
+| Message Reaction | A reaction was added or removed |
+| Message Edited / Message Deleted | A message was edited (`previousText`) or deleted for everyone |
+| Contact Created | First message from a new contact |
+| Contact Stage Changed | The contact moved to another pipeline stage (`before`, `after`) |
+| Contact Lists Changed | Lists added to or removed from a chat (`added`, `removed`) |
+| Call Received | Incoming WhatsApp call |
+
+**Filters** are applied by Wappe *before* sending, so a filtered-out event never runs the workflow:
+accounts, lists (any / all / none, picked from the list, by ID or by name), groups (exclude / include /
+only), text (contains / starts with / regex), message type, and where a message was sent from.
+A list set by name is resolved when the workflow is activated: renaming it later changes nothing, and
+activation fails with a clear message if it does not exist.
+
+**Transcribe Voice Notes**: Wappe transcribes the voice note before triggering, the text is in
+`transcription` (`text`, `lang`, `seconds`, `remainingSeconds`). The minutes are counted once, even if
+several workflows ask. If transcription fails, the event is still sent with
+`transcription.error` (`quota`, `disabled` or `failed`).
 
 - When the workflow is activated, n8n subscribes its webhook URL on your instance
   (`POST /api/webhooks/subscriptions`). When it is deactivated, n8n removes the subscription.
 - Every delivery is signed (`X-Wappe-Signature: sha256=…`, HMAC of the body with a per-subscription
   secret). The node rejects anything unsigned or badly signed.
-- Output: `session`, `chatId`, `from`, `name`, `text`, `msgId`, `ts`, `isGroup`, `reply`, `media`.
-  With **Download Media** on, the attachment (photo, voice note, video, document) is in the binary property `data`.
-- Group messages are ignored unless **Include Group Messages** is on.
-- WhatsApp sometimes delivers the same message twice. Wappe sends it to n8n only once.
+- Every event has `session`, `chatId`, `isGroup`, `from`, `name`; message events add `msgId`, `text`,
+  `type`, `fromMe`, `ts`, `reply`, `media`. With **Download Media** on, the attachment (photo, voice
+  note, video, document) is in the binary property `data`.
+- WhatsApp sometimes delivers the same event twice. Wappe sends it to n8n only once.
+- Workflows created before 0.4.0 (node version 1: Message Received, Include Group Messages) keep working.
 
-If n8n runs on the same server or private network as Wappe, the instance needs
-`WEBHOOK_SUBSCRIPTIONS_ALLOW_PRIVATE=1`. Otherwise Wappe refuses private addresses (SSRF protection).
+Wappe only calls public addresses: n8n must be reachable from the internet (SSRF protection).
 
 ## Compatibility
 

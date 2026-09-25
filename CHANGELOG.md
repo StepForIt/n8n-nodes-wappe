@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
+- **Wappe Trigger 1.1**: several events at once - Message Received, Message Sent (with its source:
+  Wappe interface, automation, API, phone), Message Read Receipt, Message Reaction, Message Edited,
+  Message Deleted, Contact Created, Contact Stage Changed, Contact Lists Changed, Call Received.
+- **Filters applied by Wappe before sending** (no useless executions): accounts, lists (any / all /
+  none, by list, ID or name - a name is resolved at activation), groups (exclude / include / only),
+  text (contains / starts with / regex), message type, sent from.
+- **Transcribe Voice Notes** option: the transcription arrives with the event, counted once.
+- Workflows using the Trigger version 1 keep working unchanged.
 - Message → Get Many: **Cursor** field (`nextCursor` of the previous page). Paging by timestamp
   (`Before` / `nextBefore`) could skip messages sent in the same second.
 

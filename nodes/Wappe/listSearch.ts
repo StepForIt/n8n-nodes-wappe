@@ -109,3 +109,8 @@ export async function searchStages(
 export async function getStages(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	return (await searchStages.call(this)).results.map((r) => ({ name: r.name, value: r.value }));
 }
+
+/** Accounts as plain options (multi-select in the trigger filters). */
+export async function getAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+	return (await searchAccounts.call(this)).results.map((r) => ({ name: r.name, value: r.value }));
+}

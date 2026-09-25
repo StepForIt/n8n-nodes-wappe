@@ -12,6 +12,8 @@ import {
 	type JsonObject,
 } from 'n8n-workflow';
 import { wappeApiRequest } from '../Wappe/transport';
+import { getAccounts, searchLists } from '../Wappe/listSearch';
+import { locator } from '../Wappe/locators';
 
 type Subscription = { id: string; url: string; secret?: string };
 type WappeEvent = {
@@ -25,6 +27,84 @@ type WappeEvent = {
 };
 
 const SUBSCRIPTIONS = '/api/webhooks/subscriptions';
+
+const EVENT_OPTIONS = [
+	{ name: 'Call Received', value: 'call.received', description: 'Incoming WhatsApp call' },
+	{
+		name: 'Contact Created',
+		value: 'contact.created',
+		description: 'First message from a new contact',
+	},
+	{
+		name: 'Contact Lists Changed',
+		value: 'contact.lists_changed',
+		description: 'Lists added to or removed from a chat',
+	},
+	{
+		name: 'Contact Stage Changed',
+		value: 'contact.stage_changed',
+		description: 'The contact moved to another pipeline stage',
+	},
+	{
+		name: 'Message Deleted',
+		value: 'message.deleted',
+		description: 'A message was deleted for everyone',
+	},
+	{ name: 'Message Edited', value: 'message.edited', description: 'A message was edited' },
+	{
+		name: 'Message Reaction',
+		value: 'message.reaction',
+		description: 'A reaction was added or removed',
+	},
+	{
+		name: 'Message Read Receipt',
+		value: 'message.ack',
+		description: 'One of your messages was sent, delivered, read or played',
+	},
+	{
+		name: 'Message Received',
+		value: 'message.received',
+		description: 'A contact sent a message to one of your accounts',
+	},
+	{
+		name: 'Message Sent',
+		value: 'message.sent',
+		description: 'A message was sent: from Wappe, an automation, the API or the phone',
+	},
+];
+
+type Filters = {
+	accounts?: string[];
+	groups?: string;
+	listMode?: string;
+	lists?: { list?: Array<{ value?: { value?: string } | string }> };
+	types?: string[];
+	sources?: string[];
+	text?: string;
+	textOperation?: string;
+	caseSensitive?: boolean;
+};
+
+/** Body of a version 1.1 subscription: events, server-side filters, transcription. */
+export function subscriptionOptions(param: (name: string, fallback?: unknown) => unknown): IDataObject {
+	const f = (param('filters', {}) ?? {}) as Filters;
+	const lists = (f.lists?.list ?? [])
+		.map((l) => String((typeof l.value === 'object' ? l.value?.value : l.value) ?? '').trim())
+		.filter(Boolean);
+	const filters: IDataObject = { groups: f.groups || 'exclude' };
+	if (f.accounts?.length) filters.accounts = f.accounts;
+	if (lists.length) filters.lists = { mode: f.listMode || 'any', values: lists };
+	if (f.text) {
+		filters.text = { op: f.textOperation || 'contains', value: f.text, caseSensitive: !!f.caseSensitive };
+	}
+	if (f.types?.length) filters.types = f.types;
+	if (f.sources?.length) filters.sources = f.sources;
+	return {
+		events: param('events', ['message.received']) as string[],
+		filters,
+		transcribe: !!param('transcribe', false),
+	};
+}
 
 /** True when `signature` is the HMAC-SHA256 of `rawBody` with `secret` (constant-time). */
 export function isValidSignature(
@@ -44,9 +124,10 @@ export class WappeTrigger implements INodeType {
 		name: 'wappeTrigger',
 		icon: { light: 'file:../../icons/wappe.svg', dark: 'file:../../icons/wappe.dark.svg' },
 		group: ['trigger'],
-		version: 1,
-		subtitle: '={{$parameter["event"]}}',
-		description: 'Starts the workflow when Wappe receives a WhatsApp message',
+		version: [1, 1.1],
+		defaultVersion: 1.1,
+		subtitle: '={{($parameter["events"] || [$parameter["event"]]).join(", ")}}',
+		description: 'Starts the workflow on Wappe events: messages received or sent, read receipts, reactions, contacts, calls',
 		defaults: { name: 'Wappe Trigger' },
 		inputs: [],
 		outputs: [NodeConnectionTypes.Main],
@@ -60,12 +141,14 @@ export class WappeTrigger implements INodeType {
 			},
 		],
 		properties: [
+			// ── Version 1 (0.1 to 0.3): one event, groups on/off. Kept for saved workflows. ──
 			{
 				displayName: 'Event',
 				name: 'event',
 				type: 'options',
 				required: true,
 				default: 'message.received',
+				displayOptions: { show: { '@version': [1] } },
 				options: [
 					{
 						name: 'Message Received',
@@ -79,7 +162,149 @@ export class WappeTrigger implements INodeType {
 				name: 'includeGroups',
 				type: 'boolean',
 				default: false,
+				displayOptions: { show: { '@version': [1] } },
 				description: 'Whether to also trigger on messages posted in WhatsApp groups',
+			},
+			// ── Version 1.1: several events, filters applied by Wappe before sending, transcription. ──
+			{
+				displayName: 'Events',
+				name: 'events',
+				type: 'multiOptions',
+				required: true,
+				default: ['message.received'],
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.1 } }] } },
+				options: EVENT_OPTIONS,
+			},
+			{
+				displayName: 'Transcribe Voice Notes',
+				name: 'transcribe',
+				type: 'boolean',
+				default: false,
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.1 } }] } },
+				description:
+					'Whether Wappe transcribes voice notes before triggering: the text arrives in "transcription" (counts transcription minutes once, even if several workflows ask)',
+			},
+			{
+				displayName: 'Filters',
+				name: 'filters',
+				type: 'collection',
+				placeholder: 'Add Filter',
+				default: {},
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.1 } }] } },
+				description: 'Applied by Wappe before sending: a filtered-out event never runs the workflow',
+				options: [
+					{
+						displayName: 'Account Names or IDs',
+						name: 'accounts',
+						type: 'multiOptions',
+						typeOptions: { loadOptionsMethod: 'getAccounts' },
+						default: [],
+						description:
+							'Only these accounts (all if empty). Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+					},
+					{
+						displayName: 'Groups',
+						name: 'groups',
+						type: 'options',
+						default: 'exclude',
+						options: [
+							{ name: 'Exclude Groups', value: 'exclude', description: 'Private chats only' },
+							{ name: 'Include Groups', value: 'include', description: 'Private chats and groups' },
+							{ name: 'Only Groups', value: 'only', description: 'WhatsApp groups only' },
+						],
+					},
+					{
+						displayName: 'List Match',
+						name: 'listMode',
+						type: 'options',
+						default: 'any',
+						description: 'How the lists below apply to the chat',
+						options: [
+							{ name: 'In All of the Lists', value: 'all' },
+							{ name: 'In Any of the Lists', value: 'any' },
+							{ name: 'In None of the Lists', value: 'none' },
+						],
+					},
+					{
+						displayName: 'Lists',
+						name: 'lists',
+						type: 'fixedCollection',
+						typeOptions: { multipleValues: true },
+						placeholder: 'Add List',
+						default: {},
+						description:
+							'Lists of the chat. A name is resolved when the workflow is activated: renaming the list later changes nothing.',
+						options: [
+							{
+								displayName: 'List',
+								name: 'list',
+								values: [
+									locator({
+										displayName: 'List',
+										name: 'value',
+										search: 'searchLists',
+										idPlaceholder: 'cat_client',
+										namePlaceholder: 'Client',
+									}),
+								],
+							},
+						],
+					},
+					{
+						displayName: 'Message Types',
+						name: 'types',
+						type: 'multiOptions',
+						default: [],
+						description: 'Message Received / Message Sent only',
+						options: [
+							{ name: 'Document', value: 'document' },
+							{ name: 'Image', value: 'image' },
+							{ name: 'Other', value: 'other' },
+							{ name: 'Sticker', value: 'sticker' },
+							{ name: 'Text', value: 'text' },
+							{ name: 'Video', value: 'video' },
+							{ name: 'Voice Note', value: 'voice' },
+						],
+					},
+					{
+						displayName: 'Sent From',
+						name: 'sources',
+						type: 'multiOptions',
+						default: [],
+						description: 'Message Sent only: where the message was sent from',
+						options: [
+							{ name: 'API', value: 'api' },
+							{ name: 'Automation', value: 'automation' },
+							{ name: 'Phone', value: 'phone' },
+							{ name: 'Wappe Interface', value: 'ui' },
+						],
+					},
+					{
+						displayName: 'Text',
+						name: 'text',
+						type: 'string',
+						default: '',
+						description: 'Message Received / Sent / Edited only. Empty: no text filter.',
+					},
+					{
+						displayName: 'Text Case Sensitive',
+						name: 'caseSensitive',
+						type: 'boolean',
+						default: false,
+						description: 'Whether the text filter is case sensitive',
+					},
+					{
+						displayName: 'Text Match',
+						name: 'textOperation',
+						type: 'options',
+						default: 'contains',
+						options: [
+							{ name: 'Contains', value: 'contains' },
+							{ name: 'Matches Regex', value: 'regex' },
+							{ name: 'Starts With', value: 'startsWith' },
+						],
+					},
+				],
 			},
 			{
 				displayName: 'Download Media',
@@ -90,6 +315,11 @@ export class WappeTrigger implements INodeType {
 					'Whether to download the attachment (photo, voice note, video, document) into the binary property "data"',
 			},
 		],
+	};
+
+	methods = {
+		loadOptions: { getAccounts },
+		listSearch: { searchLists },
 	};
 
 	webhookMethods = {
@@ -115,8 +345,12 @@ export class WappeTrigger implements INodeType {
 				const staticData = this.getWorkflowStaticData('node');
 				const body = {
 					url: this.getNodeWebhookUrl('default'),
-					events: [this.getNodeParameter('event') as string],
-					includeGroups: this.getNodeParameter('includeGroups') as boolean,
+					...(this.getNode().typeVersion >= 1.1
+						? subscriptionOptions(this.getNodeParameter.bind(this))
+						: {
+								events: [this.getNodeParameter('event') as string],
+								includeGroups: this.getNodeParameter('includeGroups') as boolean,
+							}),
 					description: `n8n workflow ${this.getWorkflow().id ?? ''}`.trim(),
 				};
 				const sub = (await wappeApiRequest.call(this, 'POST', SUBSCRIPTIONS, body)) as Subscription;

@@ -242,6 +242,67 @@ test('trigger : create → abonnement enregistré (id + secret), checkExists, de
 	await assert.rejects(() => hooks.delete.call(ctx), /Could not delete/);
 });
 
+test('trigger 1.1 : événements, filtres (listes par locator / id / nom), transcription', async () => {
+	const staticData = {};
+	const ctx = fakeContext({
+		staticData,
+		params: {
+			events: ['message.received', 'message.sent'],
+			transcribe: true,
+			filters: {
+				accounts: ['shop'],
+				groups: 'include',
+				listMode: 'all',
+				lists: { list: [{ value: { __rl: true, mode: 'list', value: 'cat_client' } }, { value: { __rl: true, mode: 'name', value: 'VIP' } }, { value: '' }] },
+				text: 'devis',
+				textOperation: 'startsWith',
+				types: ['voice'],
+				sources: ['phone', 'api'],
+			},
+		},
+		responses: { 'POST /api/webhooks/subscriptions': (o) => ({ id: 'sub_2', secret: 'whsec_2', url: o.body.url }) },
+	});
+	ctx.getNode = () => ({ name: 'Wappe Trigger', type: 'wappeTrigger', typeVersion: 1.1, parameters: {} });
+	assert.equal(await new WappeTrigger().webhookMethods.default.create.call(ctx), true);
+	assert.deepEqual(ctx.calls.at(-1).body, {
+		url: 'https://n8n.test/webhook/abc/webhook',
+		events: ['message.received', 'message.sent'],
+		filters: {
+			groups: 'include',
+			accounts: ['shop'],
+			lists: { mode: 'all', values: ['cat_client', 'VIP'] },
+			text: { op: 'startsWith', value: 'devis', caseSensitive: false },
+			types: ['voice'],
+			sources: ['phone', 'api'],
+		},
+		transcribe: true,
+		description: 'n8n workflow wf1',
+	});
+
+	const bare = fakeContext({ responses: { 'POST /api/webhooks/subscriptions': (o) => ({ id: 'sub_3', secret: 'whsec_3', url: o.body.url }) } });
+	bare.getNode = () => ({ name: 'Wappe Trigger', type: 'wappeTrigger', typeVersion: 1.1, parameters: {} });
+	await new WappeTrigger().webhookMethods.default.create.call(bare);
+	assert.deepEqual(bare.calls.at(-1).body.filters, { groups: 'exclude' }, 'défauts : conversations privées, aucun autre filtre');
+	assert.deepEqual(bare.calls.at(-1).body.events, ['message.received']);
+});
+
+test('trigger 1.1 : événements et filtres connus du spec OpenAPI de Wappe', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
+	const { openApiSpec, docPublicIds } = await import(pathToFileURL(API_DOCS).href);
+	const spec = openApiSpec({ ids: docPublicIds() });
+	const schemas = spec.components.schemas;
+	const props = new WappeTrigger().description.properties;
+	const events = props.find((p) => p.name === 'events').options.map((o) => o.value).sort();
+	assert.deepEqual(events, [...schemas.Subscription.properties.events.items.enum].sort(), 'mêmes événements des deux côtés');
+	const filterSchema = schemas.SubscriptionFilters.properties;
+	const filters = props.find((p) => p.name === 'filters').options;
+	const enumOf = (name) => filters.find((p) => p.name === name).options.map((o) => o.value).sort();
+	assert.deepEqual(enumOf('groups'), [...filterSchema.groups.enum].sort());
+	assert.deepEqual(enumOf('listMode'), [...filterSchema.lists.properties.mode.enum].sort());
+	assert.deepEqual(enumOf('textOperation'), [...filterSchema.text.properties.op.enum].sort());
+	assert.deepEqual(enumOf('types'), [...filterSchema.types.items.enum].sort());
+	assert.deepEqual(enumOf('sources'), [...filterSchema.sources.items.enum].sort());
+});
+
 test('trigger : checkExists oublie un abonnement disparu côté Wappe', async () => {
 	const staticData = { subscriptionId: 'sub_old', secret: 's' };
 	const ctx = fakeContext({ staticData, responses: { 'GET /api/webhooks/subscriptions': { subscriptions: [] } } });
