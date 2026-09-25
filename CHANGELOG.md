@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Fix: installing the package failed on n8n instances backed by Postgres (`invalid input syntax for
+  type integer: "1.1"`). The new Wappe Trigger version is now **2** (was 1.1): n8n stores node
+  versions as integers. Version 1 workflows are unchanged.
+
 ## 0.5.0
 
 - New **Wappe OAuth2 API** credential (authorization code + PKCE): give n8n limited permissions
@@ -9,7 +15,7 @@
 
 ## 0.4.0
 
-- **Wappe Trigger 1.1**: several events at once - Message Received, Message Sent (with its source:
+- **Wappe Trigger 2** (published as 1.1 in 0.5.0): several events at once - Message Received, Message Sent (with its source:
   Wappe interface, automation, API, phone), Message Read Receipt, Message Reaction, Message Edited,
   Message Deleted, Contact Created, Contact Stage Changed, Contact Lists Changed, Call Received.
 - **Filters applied by Wappe before sending** (no useless executions): accounts, lists (any / all /

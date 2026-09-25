@@ -192,6 +192,24 @@ test('transport : le choix « OAuth2 » appelle avec le credential OAuth2', asyn
 	assert.equal(ctx.calls[0].credType, 'wappeOAuth2Api');
 });
 
+// Garde-fou : n8n enregistre la version d'un nœud communautaire dans `installed_nodes.latestVersion`,
+// une colonne INTEGER sur les bases Postgres créées par d'anciennes versions de n8n. Une version 1.1
+// y fait échouer l'installation du paquet entier (« invalid input syntax for type integer », 0.5.0).
+// Chaque nœud déclaré dans package.json est vérifié, y compris ceux ajoutés plus tard.
+test('versions de nœud entières (installation sur n8n + Postgres)', () => {
+	const pkg = require('../package.json');
+	assert.ok(pkg.n8n.nodes.length >= 2);
+	for (const file of pkg.n8n.nodes) {
+		const mod = require(join(HERE, '..', file));
+		for (const Node of Object.values(mod).filter((x) => typeof x === 'function' && /^class /.test(String(x)))) {
+			const d = new Node().description;
+			if (!d) continue;
+			for (const v of [d.version].flat()) assert.ok(Number.isInteger(v), `${d.name} : version ${v} non entière`);
+			if (d.defaultVersion !== undefined) assert.ok(Number.isInteger(d.defaultVersion), `${d.name} : defaultVersion ${d.defaultVersion} non entière`);
+		}
+	}
+});
+
 // ── Contextes n8n factices ──
 function fakeContext({ params = {}, responses = {}, staticData = {}, webhookUrl = 'https://n8n.test/webhook/abc/webhook' } = {}) {
 	const calls = [];
@@ -284,7 +302,7 @@ test('trigger : create → abonnement enregistré (id + secret), checkExists, de
 	await assert.rejects(() => hooks.delete.call(ctx), /Could not delete/);
 });
 
-test('trigger 1.1 : événements, filtres (listes par locator / id / nom), transcription', async () => {
+test('trigger 2 : événements, filtres (listes par locator / id / nom), transcription', async () => {
 	const staticData = {};
 	const ctx = fakeContext({
 		staticData,
@@ -304,7 +322,7 @@ test('trigger 1.1 : événements, filtres (listes par locator / id / nom), trans
 		},
 		responses: { 'POST /api/webhooks/subscriptions': (o) => ({ id: 'sub_2', secret: 'whsec_2', url: o.body.url }) },
 	});
-	ctx.getNode = () => ({ name: 'Wappe Trigger', type: 'wappeTrigger', typeVersion: 1.1, parameters: {} });
+	ctx.getNode = () => ({ name: 'Wappe Trigger', type: 'wappeTrigger', typeVersion: 2, parameters: {} });
 	assert.equal(await new WappeTrigger().webhookMethods.default.create.call(ctx), true);
 	assert.deepEqual(ctx.calls.at(-1).body, {
 		url: 'https://n8n.test/webhook/abc/webhook',
@@ -322,13 +340,13 @@ test('trigger 1.1 : événements, filtres (listes par locator / id / nom), trans
 	});
 
 	const bare = fakeContext({ responses: { 'POST /api/webhooks/subscriptions': (o) => ({ id: 'sub_3', secret: 'whsec_3', url: o.body.url }) } });
-	bare.getNode = () => ({ name: 'Wappe Trigger', type: 'wappeTrigger', typeVersion: 1.1, parameters: {} });
+	bare.getNode = () => ({ name: 'Wappe Trigger', type: 'wappeTrigger', typeVersion: 2, parameters: {} });
 	await new WappeTrigger().webhookMethods.default.create.call(bare);
 	assert.deepEqual(bare.calls.at(-1).body.filters, { groups: 'exclude' }, 'défauts : conversations privées, aucun autre filtre');
 	assert.deepEqual(bare.calls.at(-1).body.events, ['message.received']);
 });
 
-test('trigger 1.1 : événements et filtres connus du spec OpenAPI de Wappe', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
+test('trigger 2 : événements et filtres connus du spec OpenAPI de Wappe', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
 	const { openApiSpec, docPublicIds } = await import(pathToFileURL(API_DOCS).href);
 	const spec = openApiSpec({ ids: docPublicIds() });
 	const schemas = spec.components.schemas;

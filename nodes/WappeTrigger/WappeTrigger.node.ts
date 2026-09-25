@@ -85,7 +85,7 @@ type Filters = {
 	caseSensitive?: boolean;
 };
 
-/** Body of a version 1.1 subscription: events, server-side filters, transcription. */
+/** Body of a version 2 subscription: events, server-side filters, transcription. */
 export function subscriptionOptions(param: (name: string, fallback?: unknown) => unknown): IDataObject {
 	const f = (param('filters', {}) ?? {}) as Filters;
 	const lists = (f.lists?.list ?? [])
@@ -124,8 +124,8 @@ export class WappeTrigger implements INodeType {
 		name: 'wappeTrigger',
 		icon: { light: 'file:../../icons/wappe.svg', dark: 'file:../../icons/wappe.dark.svg' },
 		group: ['trigger'],
-		version: [1, 1.1],
-		defaultVersion: 1.1,
+		version: [1, 2],
+		defaultVersion: 2,
 		subtitle: '={{($parameter["events"] || [$parameter["event"]]).join(", ")}}',
 		description: 'Starts the workflow on Wappe events: messages received or sent, read receipts, reactions, contacts, calls',
 		defaults: { name: 'Wappe Trigger' },
@@ -166,14 +166,14 @@ export class WappeTrigger implements INodeType {
 				displayOptions: { show: { '@version': [1] } },
 				description: 'Whether to also trigger on messages posted in WhatsApp groups',
 			},
-			// ── Version 1.1: several events, filters applied by Wappe before sending, transcription. ──
+			// ── Version 2: several events, filters applied by Wappe before sending, transcription. ──
 			{
 				displayName: 'Events',
 				name: 'events',
 				type: 'multiOptions',
 				required: true,
 				default: ['message.received'],
-				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.1 } }] } },
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 2 } }] } },
 				options: EVENT_OPTIONS,
 			},
 			{
@@ -181,7 +181,7 @@ export class WappeTrigger implements INodeType {
 				name: 'transcribe',
 				type: 'boolean',
 				default: false,
-				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.1 } }] } },
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 2 } }] } },
 				description:
 					'Whether Wappe transcribes voice notes before triggering: the text arrives in "transcription" (counts transcription minutes once, even if several workflows ask)',
 			},
@@ -191,7 +191,7 @@ export class WappeTrigger implements INodeType {
 				type: 'collection',
 				placeholder: 'Add Filter',
 				default: {},
-				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.1 } }] } },
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 2 } }] } },
 				description: 'Applied by Wappe before sending: a filtered-out event never runs the workflow',
 				options: [
 					{
@@ -346,7 +346,7 @@ export class WappeTrigger implements INodeType {
 				const staticData = this.getWorkflowStaticData('node');
 				const body = {
 					url: this.getNodeWebhookUrl('default'),
-					...(this.getNode().typeVersion >= 1.1
+					...(this.getNode().typeVersion >= 2
 						? subscriptionOptions(this.getNodeParameter.bind(this))
 						: {
 								events: [this.getNodeParameter('event') as string],
