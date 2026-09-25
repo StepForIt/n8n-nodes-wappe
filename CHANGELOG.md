@@ -11,6 +11,7 @@
 - Send errors explain the API limits too (`send_rate`, `rate_limited`, `daily_quota`,
   `insufficient_scope`) and show how long to wait (`Retry-After`).
 - API keys can now be limited to **permissions** (the same as OAuth2), created in Wappe → Developers.
+- README: usage examples and two importable workflows in `examples/`.
 
 ## 0.8.0
 

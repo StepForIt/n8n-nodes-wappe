@@ -4,7 +4,7 @@ n8n community nodes for [Wappe](https://wappe.me), the WhatsApp CRM and automati
 Send WhatsApp messages, manage groups, and start workflows when a contact writes to you.
 
 [Installation](#installation) · [Credentials](#credentials) · [Operations](#operations) ·
-[Trigger](#trigger) · [Compatibility](#compatibility) · [Resources](#resources)
+[Trigger](#trigger) · [Usage examples](#usage-examples) · [Compatibility](#compatibility) · [Resources](#resources)
 
 ## Installation
 
@@ -75,6 +75,11 @@ conversation needs nothing. Refusals come back with Wappe's message and code:
 | 400 | `consent_required` | New conversation without consent |
 | 403 | `opted_out` | The contact replied STOP |
 | 429 | `daily_limit` · `rate_limit` | Daily cap of new conversations, or too many in a row |
+| 429 | `send_rate` | The WhatsApp account is at its sending pace (Wappe spaces automatic sends to protect the number) |
+| 429 | `rate_limited` · `daily_quota` | API calls per minute, or daily API quota, of your plan |
+| 403 | `insufficient_scope` | The credential (API key or OAuth2) lacks the permission |
+
+The node adds an English hint to each of these errors.
 
 Read operations have a
 **Simplify** switch (on by default) that keeps only the useful fields — smaller items, fewer tokens
@@ -113,6 +118,7 @@ same pace: 8 per minute by default, 60 on the official Meta API, with a pause be
 | Message Read Receipt | One of your messages went up a level: sent, delivered, read, played (`status`) |
 | Message Reaction | A reaction was added or removed |
 | Message Edited / Message Deleted | A message was edited (`previousText`) or deleted for everyone |
+| Message Failed | A queued send (automation, asynchronous API call) failed: `jobId`, `source`, `error`. Wappe retries it daily |
 | Contact Created | First message from a new contact |
 | Contact Stage Changed | The contact moved to another pipeline stage (`before`, `after`) |
 | Contact Lists Changed | Lists added to or removed from a chat (`added`, `removed`) |
@@ -141,6 +147,28 @@ several workflows ask. If transcription fails, the event is still sent with
 - Workflows created before 0.4.0 (node version 1: Message Received, Include Group Messages) keep working.
 
 Wappe only calls public addresses: n8n must be reachable from the internet (SSRF protection).
+
+## Usage examples
+
+Import these workflows in n8n (**Workflows → Import from File**), then pick your Wappe credential in
+each node:
+
+| Workflow | What it does |
+| --- | --- |
+| [`keyword-auto-reply.json`](https://github.com/StepForIt/n8n-nodes-wappe/blob/main/examples/keyword-auto-reply.json) | A contact writes a message containing *price* → reply in the same chat, quoting their message |
+| [`new-contact-to-list.json`](https://github.com/StepForIt/n8n-nodes-wappe/blob/main/examples/new-contact-to-list.json) | First message from a new contact → add the chat to the *New leads* list (create it in Wappe first) |
+
+The Trigger output feeds the next node directly: use `{{ $json.session }}` as the account (**By ID**),
+`{{ $json.chatId }}` as the chat and `{{ $json.msgId }}` as **Reply To Message ID**.
+
+More ideas:
+
+- **CRM sync**: Contact Stage Changed → update the deal in your CRM (`after` is the new stage).
+- **Voice notes to text**: Message Received with **Message Types → Voice** and **Transcribe Voice
+  Notes** → append `transcription.text` to a Google Sheet.
+- **AI agent**: the Wappe node is usable as a tool (**AI Agent → Tools → Wappe**), so an agent can read
+  the conversation history (Message → Get Many) and answer (Message → Send Text).
+- **Failed sends alert**: Message Failed → notify your team on Slack or by email.
 
 ## Compatibility
 

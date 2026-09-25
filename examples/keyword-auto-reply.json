@@ -1,0 +1,56 @@
+{
+	"name": "Wappe - Reply to a keyword",
+	"nodes": [
+		{
+			"parameters": {
+				"events": ["message.received"],
+				"filters": {
+					"groups": "exclude",
+					"text": "price",
+					"textOperation": "contains"
+				}
+			},
+			"name": "Wappe Trigger",
+			"type": "n8n-nodes-wappe.wappeTrigger",
+			"typeVersion": 2,
+			"position": [0, 0]
+		},
+		{
+			"parameters": {
+				"resource": "message",
+				"operation": "sendText",
+				"session": {
+					"__rl": true,
+					"mode": "id",
+					"value": "={{ $json.session }}"
+				},
+				"target": {
+					"__rl": true,
+					"mode": "id",
+					"value": "={{ $json.chatId }}"
+				},
+				"text": "=Hi {{ $json.name }}, our price list: https://example.com/prices",
+				"options": {
+					"replyTo": "={{ $json.msgId }}"
+				}
+			},
+			"name": "Send the price list",
+			"type": "n8n-nodes-wappe.wappe",
+			"typeVersion": 1,
+			"position": [260, 0]
+		}
+	],
+	"connections": {
+		"Wappe Trigger": {
+			"main": [
+				[
+					{
+						"node": "Send the price list",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	}
+}

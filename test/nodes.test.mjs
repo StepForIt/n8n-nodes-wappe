@@ -506,3 +506,39 @@ test('envoi refusé par le débit : code, conseil et délai Retry-After', async 
 	const queued = await sendResult.call(ctx, [], { statusCode: 202, headers: {}, body: { ok: true, jobId: 'q_1', status: 'queued' } });
 	assert.equal(queued[0].json.jobId, 'q_1', 'un 202 (mise en file) est un succès');
 });
+
+test('exemples du README : chaque paramètre existe, est visible et a une valeur admise', () => {
+	const { readdirSync, readFileSync } = require('node:fs');
+	const types = {
+		'n8n-nodes-wappe.wappe': new Wappe().description,
+		'n8n-nodes-wappe.wappeTrigger': new WappeTrigger().description,
+	};
+	const dir = join(HERE, '..', 'examples');
+	for (const file of readdirSync(dir)) {
+		const workflow = JSON.parse(readFileSync(join(dir, file), 'utf8'));
+		for (const node of workflow.nodes) {
+			const d = types[node.type];
+			assert.ok(d, `${file} : type ${node.type}`);
+			assert.ok([d.version].flat().includes(node.typeVersion), `${file} : version ${node.typeVersion}`);
+			const params = node.parameters;
+			const shown = (p) =>
+				Object.entries(p.displayOptions?.show ?? {}).every(
+					([k, v]) => k === '@version' || v.includes(params[k] ?? d.properties.find((x) => x.name === k)?.default),
+				);
+			for (const [key, value] of Object.entries(params)) {
+				const prop = d.properties.find((p) => p.name === key && shown(p));
+				const where = `${file} › ${node.name} › ${key}`;
+				assert.ok(prop, `${where} : paramètre inconnu ou masqué`);
+				if (prop.type === 'resourceLocator') assert.ok(prop.modes.some((m) => m.name === value.mode), where);
+				if (prop.type === 'options') assert.ok(prop.options.some((o) => o.value === value), where);
+				if (prop.type === 'multiOptions') for (const v of value) assert.ok(prop.options.some((o) => o.value === v), where);
+				if (prop.type === 'collection')
+					for (const sub of Object.keys(value)) assert.ok(prop.options.some((o) => o.name === sub), `${where}.${sub}`);
+			}
+		}
+		for (const [from, out] of Object.entries(workflow.connections)) {
+			for (const name of [from, ...out.main.flat().map((c) => c.node)])
+				assert.ok(workflow.nodes.some((n) => n.name === name), `${file} : connexion vers ${name}`);
+		}
+	}
+});

@@ -1,0 +1,55 @@
+{
+	"name": "Wappe - File new contacts in a list",
+	"nodes": [
+		{
+			"parameters": {
+				"events": ["contact.created"],
+				"filters": {
+					"groups": "exclude"
+				}
+			},
+			"name": "Wappe Trigger",
+			"type": "n8n-nodes-wappe.wappeTrigger",
+			"typeVersion": 2,
+			"position": [0, 0]
+		},
+		{
+			"parameters": {
+				"resource": "list",
+				"operation": "addMember",
+				"session": {
+					"__rl": true,
+					"mode": "id",
+					"value": "={{ $json.session }}"
+				},
+				"list": {
+					"__rl": true,
+					"mode": "name",
+					"value": "New leads"
+				},
+				"listChat": {
+					"__rl": true,
+					"mode": "id",
+					"value": "={{ $json.chatId }}"
+				}
+			},
+			"name": "Add to New leads",
+			"type": "n8n-nodes-wappe.wappe",
+			"typeVersion": 1,
+			"position": [260, 0]
+		}
+	],
+	"connections": {
+		"Wappe Trigger": {
+			"main": [
+				[
+					{
+						"node": "Add to New leads",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	}
+}
