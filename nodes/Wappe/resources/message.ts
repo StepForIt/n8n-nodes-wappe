@@ -1,5 +1,6 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { attachMedia, toBinaryItem } from '../binary';
+import { sendResult } from '../errors';
 import { locator, rl } from '../locators';
 
 const forMessage = { resource: ['message'] };
@@ -11,6 +12,16 @@ const MSG = '={{$parameter.msgId}}';
 const SIMPLE = '={{$parameter.simplify}}';
 const sendBody = { session: SESSION, to: TO };
 const onChat = { session: SESSION, chatId: TO, msgId: MSG };
+const sendRouting = (url: string) => ({
+	request: {
+		method: 'POST' as const,
+		url,
+		body: sendBody,
+		ignoreHttpStatusErrors: true,
+		returnFullResponse: true,
+	},
+	output: { postReceive: [sendResult] },
+});
 
 export const messageOperations: INodeProperties[] = [
 	{
@@ -101,10 +112,7 @@ export const messageOperations: INodeProperties[] = [
 				value: 'sendMedia',
 				action: 'Send a media message',
 				description: 'Send a photo, video, audio or document from a URL or from binary data',
-				routing: {
-					send: { preSend: [attachMedia] },
-					request: { method: 'POST', url: '/api/v1/messages', body: sendBody },
-				},
+				routing: { send: { preSend: [attachMedia] }, ...sendRouting('/api/v1/messages') },
 			},
 			{
 				name: 'Send Template',
@@ -112,24 +120,21 @@ export const messageOperations: INodeProperties[] = [
 				action: 'Send a template message',
 				description:
 					'Send a template from your Wappe library (with its attachment, if any), filling its variables',
-				routing: { request: { method: 'POST', url: '/api/v1/messages', body: sendBody } },
+				routing: sendRouting('/api/v1/messages'),
 			},
 			{
 				name: 'Send Text',
 				value: 'sendText',
 				action: 'Send a text message',
 				description: 'Send a WhatsApp text message from one of your accounts',
-				routing: { request: { method: 'POST', url: '/api/v1/messages', body: sendBody } },
+				routing: sendRouting('/api/v1/messages'),
 			},
 			{
 				name: 'Send Voice Note',
 				value: 'sendVoice',
 				action: 'Send a voice note',
 				description: 'Send an audio file as a WhatsApp voice note (converted automatically)',
-				routing: {
-					send: { preSend: [attachMedia] },
-					request: { method: 'POST', url: '/api/v1/messages/voice', body: sendBody },
-				},
+				routing: { send: { preSend: [attachMedia] }, ...sendRouting('/api/v1/messages/voice') },
 			},
 			{
 				name: 'Transcribe Voice Note',
@@ -149,6 +154,17 @@ export const messageOperations: INodeProperties[] = [
 		default: 'sendText',
 	},
 ];
+
+/** An attestation by the user: never true by default, or cold outreach would be back. */
+const CONSENT: INodeProperties = {
+	displayName: 'Contact Has Consented',
+	name: 'consent',
+	type: 'boolean',
+	default: false,
+	description:
+		'Whether the contact agreed to be contacted. Required to open a new conversation (a contact you never exchanged a message with); not needed to reply in an existing one.',
+	routing: { send: { type: 'body', property: 'consent' } },
+};
 
 export const messageFields: INodeProperties[] = [
 	locator({
@@ -343,6 +359,7 @@ export const messageFields: INodeProperties[] = [
 		default: {},
 		displayOptions: onMessage('sendText', 'sendTemplate', 'sendMedia'),
 		options: [
+			CONSENT,
 			{
 				displayName: 'Reply To Message ID',
 				name: 'replyTo',
@@ -352,5 +369,14 @@ export const messageFields: INodeProperties[] = [
 				routing: { send: { type: 'body', property: 'replyTo' } },
 			},
 		],
+	},
+	{
+		displayName: 'Options',
+		name: 'options',
+		type: 'collection',
+		placeholder: 'Add Option',
+		default: {},
+		displayOptions: onMessage('sendVoice'),
+		options: [CONSENT],
 	},
 ];

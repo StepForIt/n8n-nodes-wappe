@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- **Breaking, server side** (Wappe API since 2026-09-25): opening a new WhatsApp conversation
+  (a contact you never exchanged a message with) now requires consent. Without it, sends fail with
+  `400 consent_required`. Replies in existing conversations are unaffected.
+- New **Options → Contact Has Consented** on Send Text, Send Template, Send Media and Send Voice
+  Note. Off by default: turn it on only when the contact agreed to be contacted.
+- Send errors now show Wappe's message and code (`consent_required`, `opted_out`, `daily_limit`,
+  `rate_limit`) instead of n8n's generic text ("Forbidden - perhaps check your credentials?").
+
 ## 0.5.1
 
 - Fix: installing the package failed on n8n instances backed by Postgres (`invalid input syntax for

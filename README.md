@@ -61,7 +61,20 @@ for contact events.
 | Account | Get Many | `GET /api/me` |
 | Usage | Get (transcription minutes and WAPPE AI tokens of the month) | `GET /api/v1/usage` |
 
-Every send can quote a message (**Options → Reply To Message ID**). Read operations have a
+Text, template and media sends can quote a message (**Options → Reply To Message ID**).
+
+**Opening a conversation needs consent.** Sending to a WhatsApp contact you never exchanged a
+message with is refused unless you turn on **Options → Contact Has Consented** (you attest they
+agreed to be contacted), or their consent is already on their Wappe profile. Replying in an existing
+conversation needs nothing. Refusals come back with Wappe's message and code:
+
+| HTTP | Code | Meaning |
+| --- | --- | --- |
+| 400 | `consent_required` | New conversation without consent |
+| 403 | `opted_out` | The contact replied STOP |
+| 429 | `daily_limit` · `rate_limit` | Daily cap of new conversations, or too many in a row |
+
+Read operations have a
 **Simplify** switch (on by default) that keeps only the useful fields — smaller items, fewer tokens
 for AI steps.
 

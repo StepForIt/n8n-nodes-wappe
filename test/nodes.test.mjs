@@ -450,3 +450,27 @@ test('pièce jointe : URL ou binaire n8n posé dans le corps (media, ou audio po
 	const byBinary = await attachMedia.call(ctx({ operation: 'sendVoice', mediaSource: 'binary', binaryPropertyName: 'data' }), { body: {} });
 	assert.deepEqual(byBinary.body.audio, { data: Buffer.from('%PDF-1.4').toString('base64'), filename: 'facture.pdf', mimetype: 'application/pdf' });
 });
+
+test('consentement : option sur les 4 envois, jamais à true par défaut', () => {
+	for (const op of ['sendText', 'sendTemplate', 'sendMedia', 'sendVoice']) {
+		const o = OPS.find((x) => x.resource === 'message' && x.operation === op);
+		assert.ok(o.sent.has('consent'), `${op} : consent non envoyé`);
+		const consent = o.fields.find((f) => f.name === 'options').options.find((s) => s.name === 'consent');
+		assert.equal(consent.default, false);
+	}
+	const voice = OPS.find((x) => x.operation === 'sendVoice');
+	assert.ok(!voice.sent.has('replyTo'), 'la route vocale ne cite pas');
+});
+
+test('envoi refusé : message et code de Wappe, pas le texte générique de n8n', async () => {
+	const { sendResult } = require('../dist/nodes/Wappe/errors.js');
+	const ctx = { getNode: () => ({ name: 'Wappe', type: 'wappe', typeVersion: 1, parameters: {} }) };
+	const ok = await sendResult.call(ctx, [], { statusCode: 200, headers: {}, body: { ok: true, msgId: 'm1' } });
+	assert.deepEqual(ok, [{ json: { ok: true, msgId: 'm1' } }]);
+	for (const [status, code] of [[400, 'consent_required'], [403, 'opted_out'], [429, 'daily_limit'], [429, 'rate_limit']]) {
+		await assert.rejects(
+			sendResult.call(ctx, [], { statusCode: status, headers: {}, body: { error: `refus ${code}`, code } }),
+			(e) => e.message === `refus ${code}` && e.description.startsWith(`Code: ${code}.`) && e.httpCode === String(status),
+		);
+	}
+});
