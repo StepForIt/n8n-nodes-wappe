@@ -34,7 +34,9 @@ export class WappeOAuth2Api implements ICredentialType {
 		},
 		{
 			displayName: 'Permissions',
-			name: 'scopes',
+			// Pas « scopes » : n8n pose ce champ sur chaque credential (ses propres droits RBAC) et
+			// l'éditeur l'écrase avec, d'où un scope refusé par Wappe.
+			name: 'permissions',
 			type: 'multiOptions',
 			options: SCOPES,
 			default: SCOPES.map((s) => s.value),
@@ -65,7 +67,7 @@ export class WappeOAuth2Api implements ICredentialType {
 			displayName: 'Scope',
 			name: 'scope',
 			type: 'hidden',
-			default: '={{[].concat($self["scopes"]).join(" ")}}',
+			default: '={{[].concat($self["permissions"]).join(" ")}}',
 		},
 		{
 			displayName: 'Auth URI Query Parameters',

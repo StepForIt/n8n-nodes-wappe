@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- OAuth2: the **Permissions** field no longer collides with n8n's own `scopes` credential field, which
+  the editor filled with n8n's internal permissions (`workflow:create`…) and Wappe refused (`invalid_scope`).
+  Existing OAuth2 credentials: open them, check Permissions (all by default) and reconnect.
+
 ## 0.9.1
 
 - README: usage examples and two importable workflows (`examples/`); errors table completed

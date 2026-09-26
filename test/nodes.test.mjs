@@ -165,7 +165,9 @@ test('credential OAuth2 : PKCE, URLs dérivées de l\'instance, tous les droits 
 	assert.equal(prop('grantType').default, 'pkce');
 	assert.match(prop('authUrl').default, /\$self\["url"\].*\/oauth\/authorize$/);
 	assert.match(prop('accessTokenUrl').default, /\$self\["url"\].*\/oauth\/token$/);
-	assert.deepEqual(prop('scopes').default, prop('scopes').options.map((o) => o.value));
+	assert.deepEqual(prop('permissions').default, prop('permissions').options.map((o) => o.value));
+	assert.equal(prop('scopes'), undefined, 'nom réservé par n8n (droits RBAC du credential)');
+	assert.match(prop('scope').default, /\$self\["permissions"\]/);
 	assert.equal(cred.test.request.url, '/api/me');
 	for (const node of [new Wappe(), new WappeTrigger()]) {
 		const auth = node.description.properties.find((p) => p.name === 'authentication');
@@ -176,7 +178,7 @@ test('credential OAuth2 : PKCE, URLs dérivées de l\'instance, tous les droits 
 
 test('contrat OAuth2 : scopes du credential = scopes du serveur, chaque opération en exige un', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
 	const { SCOPES, ANY, integrationRoute } = await import(pathToFileURL(OAUTH_SCOPES).href);
-	const offered = new WappeOAuth2Api().properties.find((p) => p.name === 'scopes').options.map((o) => o.value);
+	const offered = new WappeOAuth2Api().properties.find((p) => p.name === 'permissions').options.map((o) => o.value);
 	assert.deepEqual(offered.sort(), Object.keys(SCOPES).sort());
 	// Sans charger le serveur : la table des routes d'intégration suffit (le scope de chaque route
 	// /api/v1 est vérifié côté serveur, test/unit/oauth-scopes.test.mjs).
