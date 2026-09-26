@@ -114,8 +114,8 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 });
 
 test('contrat avec le spec OpenAPI de Wappe (routes, jeton, champs)', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
-	const { openApiSpec, docPublicIds } = await import(pathToFileURL(API_DOCS).href);
-	const spec = openApiSpec({ ids: docPublicIds() });
+	const { openApiSpec, docSectionIds } = await import(pathToFileURL(API_DOCS).href);
+	const spec = openApiSpec({ ids: docSectionIds() });
 	for (const o of OPS) {
 		const { method } = o.option.routing.request;
 		const url = specPath(o.option.routing.request.url);
@@ -182,9 +182,9 @@ test('contrat OAuth2 : scopes du credential = scopes du serveur, chaque opérati
 	assert.deepEqual(offered.sort(), Object.keys(SCOPES).sort());
 	// Sans charger le serveur : la table des routes d'intégration suffit (le scope de chaque route
 	// /api/v1 est vérifié côté serveur, test/unit/oauth-scopes.test.mjs).
-	const { openApiSpec, docPublicIds, setScopeResolver } = await import(pathToFileURL(API_DOCS).href);
+	const { openApiSpec, docSectionIds, setScopeResolver } = await import(pathToFileURL(API_DOCS).href);
 	setScopeResolver((m, path) => { const r = integrationRoute(m, path); return r ? (r[3] === 'v1' ? ANY : r[3]) : null; });
-	const spec = openApiSpec({ ids: docPublicIds() });
+	const spec = openApiSpec({ ids: docSectionIds() });
 	for (const o of OPS) {
 		const { method } = o.option.routing.request;
 		const url = specPath(o.option.routing.request.url);
@@ -357,8 +357,8 @@ test('trigger 2 : événements, filtres (listes par locator / id / nom), transcr
 });
 
 test('trigger 2 : événements et filtres connus du spec OpenAPI de Wappe', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
-	const { openApiSpec, docPublicIds } = await import(pathToFileURL(API_DOCS).href);
-	const spec = openApiSpec({ ids: docPublicIds() });
+	const { openApiSpec, docSectionIds } = await import(pathToFileURL(API_DOCS).href);
+	const spec = openApiSpec({ ids: docSectionIds() });
 	const schemas = spec.components.schemas;
 	const props = new WappeTrigger().description.properties;
 	const events = props.find((p) => p.name === 'events').options.map((o) => o.value).sort();
