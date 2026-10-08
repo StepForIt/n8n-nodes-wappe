@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0
+
+- New operation **Message → Analyze Photo or Video**: what a photo or video shows and the text it contains
+  (amounts, dates, references), from Wappe's "Photo & video analysis" module. Paid in WAPPE AI tokens, once
+  per message.
+- Trigger: **Analyze Photos and Videos** option, the result arrives in `analysis`.
+
 ## 0.9.2
 
 - OAuth2: the **Permissions** field no longer collides with n8n's own `scopes` credential field, which

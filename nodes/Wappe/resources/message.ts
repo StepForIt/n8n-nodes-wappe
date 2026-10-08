@@ -158,6 +158,20 @@ export const messageOperations: INodeProperties[] = [
 					},
 				},
 			},
+			{
+				name: 'Analyze Photo or Video',
+				value: 'analyze',
+				action: 'Analyze a photo or video',
+				description:
+					'Describe a photo or video and read the text it contains (amounts, dates, references). Paid in WAPPE AI tokens, once per message.',
+				routing: {
+					request: {
+						method: 'POST',
+						url: '/api/v1/messages/analyze',
+						body: { ...onChat, simple: SIMPLE },
+					},
+				},
+			},
 		],
 		default: 'sendText',
 	},
@@ -297,6 +311,7 @@ export const messageFields: INodeProperties[] = [
 			'deleteMessage',
 			'downloadMedia',
 			'transcribe',
+			'analyze',
 		),
 		description: 'The msgId of the message, as returned by the trigger or by Get Many',
 	},
@@ -356,7 +371,7 @@ export const messageFields: INodeProperties[] = [
 		name: 'simplify',
 		type: 'boolean',
 		default: true,
-		displayOptions: onMessage('getAll', 'transcribe'),
+		displayOptions: onMessage('getAll', 'transcribe', 'analyze'),
 		description: 'Whether to return a simplified version of the response instead of the raw data',
 	},
 	{

@@ -113,6 +113,7 @@ export function subscriptionOptions(param: (name: string, fallback?: unknown) =>
 		events: param('events', ['message.received']) as string[],
 		filters,
 		transcribe: !!param('transcribe', false),
+		...(param('analyze', false) ? { analyze: true } : {}),
 	};
 }
 
@@ -194,6 +195,15 @@ export class WappeTrigger implements INodeType {
 				displayOptions: { show: { '@version': [{ _cnd: { gte: 2 } }] } },
 				description:
 					'Whether Wappe transcribes voice notes before triggering: the text arrives in "transcription" (counts transcription minutes once, even if several workflows ask)',
+			},
+			{
+				displayName: 'Analyze Photos and Videos',
+				name: 'analyze',
+				type: 'boolean',
+				default: false,
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 2 } }] } },
+				description:
+					'Whether Wappe analyzes photos and videos before triggering: what they show and the text they contain arrive in "analysis" (paid in WAPPE AI tokens once, even if several workflows ask)',
 			},
 			{
 				displayName: 'Filters',

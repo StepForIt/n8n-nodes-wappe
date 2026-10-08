@@ -83,6 +83,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 			'list:addMember',
 			'list:getAll',
 			'list:removeMember',
+			'message:analyze',
 			'message:deleteMessage',
 			'message:downloadMedia',
 			'message:editMessage',
@@ -317,6 +318,7 @@ test('trigger 2 : événements, filtres (listes par locator / id / nom), transcr
 		params: {
 			events: ['message.received', 'message.sent'],
 			transcribe: true,
+			analyze: true,
 			filters: {
 				accounts: ['shop'],
 				groups: 'include',
@@ -346,6 +348,7 @@ test('trigger 2 : événements, filtres (listes par locator / id / nom), transcr
 			emojis: ['👍', '❤️', '🔥'],
 		},
 		transcribe: true,
+		analyze: true,
 		description: 'n8n workflow wf1',
 	});
 
