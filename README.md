@@ -34,7 +34,8 @@ To give n8n **limited permissions** instead, choose **Authentication → OAuth2*
    *OAuth Redirect URL* shown in the n8n credential.
 2. Copy the **Client ID** and **Client Secret** (shown once) into the credential, with your **Instance URL**.
 3. Pick the **Permissions** (all by default): send messages, read conversations, read / update contacts,
-   lists, WhatsApp groups, webhooks (Trigger), usage.
+   lists, WhatsApp groups, webhooks (Trigger), usage, mini apps and automations (the two last ones are
+   for the instance's MCP endpoint, `POST /api/mcp`, e.g. with the n8n *MCP Client* node).
 4. **Connect my account**: a Wappe administrator approves the permissions on the consent screen.
 
 An operation outside the granted permissions fails with `403 insufficient_scope`. Access can be revoked

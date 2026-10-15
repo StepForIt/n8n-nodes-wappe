@@ -9,6 +9,10 @@ const SCOPES = [
 	{ name: 'WhatsApp Groups', value: 'groups' },
 	{ name: 'Webhooks (Trigger)', value: 'webhooks' },
 	{ name: 'Usage', value: 'usage' },
+	// Portées du point MCP de l'instance (POST /api/mcp) : aucune opération du nœud ne les exige, mais le
+	// credential propose tous les droits du serveur (contrat testé), et un nœud « MCP Client » les réclame.
+	{ name: 'Mini Apps (MCP)', value: 'miniapps' },
+	{ name: 'Automations (MCP)', value: 'automations' },
 ];
 
 export class WappeOAuth2Api implements ICredentialType {
