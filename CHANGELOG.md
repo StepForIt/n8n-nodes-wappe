@@ -3,7 +3,7 @@
 ## 0.11.0
 
 - New resource **Record** (the records of your mini apps): **Get Many** (app, entity, JSON filter, open or
-  closed, limit), **Create**, **Update** (only what you set), **Assign** (a contact, an agent or a list, with
+  closed, sort, limit or **Return All**, which follows Wappe's page cursor), **Create**, **Update** (only what you set), **Assign** (a contact, an agent or a list, with
   the dedicated WhatsApp group). Uses the instance's MCP endpoint (`POST /api/mcp`) and needs the **Mini apps**
   permission: a key without it gets a readable error.
 - Example workflow `examples/new-record-to-list.json`.

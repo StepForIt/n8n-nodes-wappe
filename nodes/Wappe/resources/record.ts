@@ -2,10 +2,12 @@ import type {
 	IDataObject,
 	IExecuteSingleFunctions,
 	IHttpRequestOptions,
+	IN8nHttpFullResponse,
+	INodeExecutionData,
 	INodeProperties,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
-import { mcpResult } from '../errors';
+import { mcpData, mcpResult } from '../errors';
 
 /**
  * Records (« fiches ») of the instance's mini apps. Wappe opens them to integrations through its MCP
@@ -33,6 +35,11 @@ const MCP_ROUTING = {
 	},
 	output: { postReceive: [mcpResult] },
 };
+/** Get Many follows the `next` cursor itself when Return All is on (recordPages). */
+const MCP_PAGED_ROUTING = { ...MCP_ROUTING, output: { postReceive: [recordPages] } };
+/** Page size of Return All, and a ceiling on pages (a loop guard, 100,000 records). */
+const PAGE_SIZE = 500;
+const MAX_PAGES = 200;
 
 export const recordOperations: INodeProperties[] = [
 	{
@@ -61,7 +68,7 @@ export const recordOperations: INodeProperties[] = [
 				value: 'getAll',
 				action: 'Get many records',
 				description: 'Read the records of a mini app, with filters',
-				routing: MCP_ROUTING,
+				routing: MCP_PAGED_ROUTING,
 			},
 			{
 				name: 'Update',
@@ -125,12 +132,33 @@ export const recordFields: INodeProperties[] = [
 		displayOptions: onRecord('getAll'),
 	},
 	{
+		displayName: 'Return All',
+		name: 'returnAll',
+		type: 'boolean',
+		default: false,
+		description: 'Whether to return all results or only up to a given limit',
+		displayOptions: onRecord('getAll'),
+	},
+	{
 		displayName: 'Limit',
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 500 },
 		default: 50,
 		description: 'Max number of results to return',
+		displayOptions: { show: { ...forRecord, operation: ['getAll'], returnAll: [false] } },
+	},
+	{
+		displayName: 'Sort',
+		name: 'sort',
+		type: 'options',
+		options: [
+			{ name: 'Default', value: '', description: 'Last updated first, or creation order with Return All (stable while records change)' },
+			{ name: 'Last Updated First', value: '-updatedAt' },
+			{ name: 'Oldest First', value: 'createdAt' },
+			{ name: 'Newest First', value: '-createdAt' },
+		],
+		default: '',
 		displayOptions: onRecord('getAll'),
 	},
 	// ── Create / Update ──
@@ -233,7 +261,10 @@ export function recordArguments(ctx: IExecuteSingleFunctions): IDataObject {
 		if (Object.keys(where).length) args.where = where;
 		const open = ctx.getNodeParameter('open', 'all');
 		if (open !== 'all') args.open = open === 'open';
-		args.limit = Number(ctx.getNodeParameter('limit', 50)) || 50;
+		const returnAll = ctx.getNodeParameter('returnAll', false) === true;
+		const sort = String(ctx.getNodeParameter('sort', '') ?? '');
+		if (sort || returnAll) args.sort = sort || 'createdAt';
+		args.limit = returnAll ? PAGE_SIZE : Number(ctx.getNodeParameter('limit', 50)) || 50;
 		return args;
 	}
 	const own: IDataObject = {};
@@ -276,4 +307,40 @@ export async function recordRequest(
 		params: { name: RECORD_TOOLS[operation], arguments: recordArguments(this) },
 	};
 	return requestOptions;
+}
+
+/**
+ * Get Many: the records of the first page, then, with Return All, the next pages through the
+ * `next` cursor (`after`, same sort), until Wappe answers `next: null`.
+ */
+export async function recordPages(
+	this: IExecuteSingleFunctions,
+	items: INodeExecutionData[],
+	response: IN8nHttpFullResponse,
+): Promise<INodeExecutionData[]> {
+	let data = await mcpData.call(this, items, response);
+	const records = [...((data.records ?? []) as IDataObject[])];
+	if (this.getNodeParameter('returnAll', false) === true) {
+		const args = recordArguments(this);
+		const credential = this.getNodeParameter('authentication', 'apiKey') === 'oAuth2' ? 'wappeOAuth2Api' : 'wappeApi';
+		const { url } = await this.getCredentials(credential);
+		for (let page = 1; typeof data.next === 'string' && data.next && page < MAX_PAGES; page++) {
+			const body = await this.helpers.httpRequestWithAuthentication.call(this, credential, {
+				method: 'POST',
+				url: `${String(url ?? '').replace(/\/+$/, '')}/api/mcp`,
+				json: true,
+				ignoreHttpStatusErrors: true,
+				returnFullResponse: true,
+				body: {
+					jsonrpc: '2.0',
+					id: this.getItemIndex() + 1,
+					method: 'tools/call',
+					params: { name: RECORD_TOOLS.getAll, arguments: { ...args, after: data.next } },
+				},
+			});
+			data = await mcpData.call(this, items, body as IN8nHttpFullResponse);
+			records.push(...((data.records ?? []) as IDataObject[]));
+		}
+	}
+	return records.map((json) => ({ json }));
 }

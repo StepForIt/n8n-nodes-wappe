@@ -556,11 +556,22 @@ test('exemples du README : chaque paramètre existe, est visible et a une valeur
 });
 
 // ── Record (fiches de mini apps) : le point MCP ──
-function recordContext(params) {
+function recordContext(params, pages = []) {
+	const calls = [];
 	return {
+		calls,
 		getNodeParameter: (name, fallback) => (name in params ? params[name] : fallback),
 		getItemIndex: () => 0,
 		getNode: () => ({ name: 'Wappe', type: 'wappe', typeVersion: 1, parameters: {} }),
+		getCredentials: async () => ({ url: 'https://wappe.test/', apiKey: 'wtk_x' }),
+		helpers: {
+			httpRequestWithAuthentication: async (credType, options) => {
+				calls.push({ credType, ...options });
+				const page = pages.shift();
+				if (!page) throw new Error('page inattendue');
+				return page;
+			},
+		},
 	};
 }
 const callFor = async (params) => {
@@ -620,7 +631,7 @@ test('record : contrat avec les outils MCP de Wappe (nom, portée miniapps, argu
 	const { RECORD_TOOLS } = require('../dist/nodes/Wappe/resources/record.js');
 	const src = readFileSync(MCP_TOOLS, 'utf8');
 	// Sans charger le serveur (ses dépendances) : le bloc de chaque outil dans la source.
-	const sent = { getAll: ['app', 'entity', 'where', 'open', 'limit'], create: ['app', 'entity', 'title', 'status', 'fields'], update: ['app', 'entity', 'id', 'patch'], assign: ['app', 'entity', 'id', 'person', 'group', 'intro', 'notify'] };
+	const sent = { getAll: ['app', 'entity', 'where', 'open', 'limit', 'sort', 'after'], create: ['app', 'entity', 'title', 'status', 'fields'], update: ['app', 'entity', 'id', 'patch'], assign: ['app', 'entity', 'id', 'person', 'group', 'intro', 'notify'] };
 	assert.deepEqual(Object.keys(RECORD_TOOLS).sort(), OPS.filter((o) => o.resource === 'record').map((o) => o.operation).sort());
 	for (const [op, tool] of Object.entries(RECORD_TOOLS)) {
 		const block = new RegExp(`name: "${tool}", scope: "miniapps"[\\s\\S]*?inputSchema: obj\\(\\{([^\\n]*)\\}(?:, \\[([^\\]]*)\\])?\\)`).exec(src);
@@ -629,4 +640,29 @@ test('record : contrat avec les outils MCP de Wappe (nom, portée miniapps, argu
 		for (const k of sent[op]) assert.ok(known.includes(k), `${tool} : argument ${k} inconnu`);
 		for (const k of (block[2] ?? '').match(/\w+/g) ?? []) assert.ok(sent[op].includes(k), `${tool} : argument requis ${k} non envoyé`);
 	}
+});
+
+test('record : Get Many « Return All » suit le curseur next (after, même tri) jusqu\'à null', async () => {
+	const { recordPages } = require('../dist/nodes/Wappe/resources/record.js');
+	const params = { operation: 'getAll', app: 'ot', entity: '', open: 'open', where: {}, returnAll: true, limit: 7, sort: '' };
+	assert.deepEqual((await callFor(params)).params.arguments, { app: 'ot', open: true, sort: 'createdAt', limit: 500 }, 'tri stable, pages de 500');
+	assert.deepEqual((await callFor({ ...params, sort: '-createdAt' })).params.arguments.sort, '-createdAt', 'tri choisi gardé');
+	const ctx = recordContext(params, [
+		mcpOk({ records: [{ id: 'r3' }], next: 'c2' }),
+		mcpOk({ records: [{ id: 'r4' }, { id: 'r5' }], next: null }),
+	]);
+	const items = await recordPages.call(ctx, [], mcpOk({ records: [{ id: 'r1' }, { id: 'r2' }], next: 'c1' }));
+	assert.deepEqual(items.map((i) => i.json.id), ['r1', 'r2', 'r3', 'r4', 'r5']);
+	assert.deepEqual(ctx.calls.map((c) => [c.credType, c.method, c.url, c.body.params.name, c.body.params.arguments.after, c.body.params.arguments.sort]), [
+		['wappeApi', 'POST', 'https://wappe.test/api/mcp', 'records_list', 'c1', 'createdAt'],
+		['wappeApi', 'POST', 'https://wappe.test/api/mcp', 'records_list', 'c2', 'createdAt'],
+	]);
+	// Sans Return All : une seule page, curseur ignoré ; une page refusée en cours de route est une erreur.
+	const one = recordContext({ ...params, returnAll: false });
+	assert.deepEqual((await recordPages.call(one, [], mcpOk({ records: [{ id: 'r1' }], next: 'c1' }))).length, 1);
+	assert.equal(one.calls.length, 0);
+	const refused = recordContext({ ...params, authentication: 'oAuth2' }, [mcpRefused('curseur invalide {"code":"invalid"}')]);
+	await assert.rejects(recordPages.call(refused, [], mcpOk({ records: [], next: 'c1' })), /curseur invalide/);
+	assert.equal(refused.calls[0].credType, 'wappeOAuth2Api');
+	assert.deepEqual((await callFor({ ...params, returnAll: false, sort: '' })).params.arguments, { app: 'ot', open: true, limit: 7 }, 'sans Return All : tri par défaut du serveur');
 });

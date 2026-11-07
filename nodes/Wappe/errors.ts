@@ -68,7 +68,22 @@ export async function mcpResult(
 	items: INodeExecutionData[],
 	response: IN8nHttpFullResponse,
 ): Promise<INodeExecutionData[]> {
-	if (response.statusCode >= 400) return sendResult.call(this, items, response);
+	const data = await mcpData.call(this, items, response);
+	if (Array.isArray(data.records)) return (data.records as IDataObject[]).map((json) => ({ json }));
+	if (data.record && typeof data.record === 'object') return [{ json: data.record as IDataObject }];
+	return [{ json: data }];
+}
+
+/** The tool's result as an object (or a readable node error): what mcpResult turns into items. */
+export async function mcpData(
+	this: IExecuteSingleFunctions,
+	items: INodeExecutionData[],
+	response: IN8nHttpFullResponse,
+): Promise<IDataObject> {
+	if (response.statusCode >= 400) {
+		await sendResult.call(this, items, response);
+		return {};
+	}
 	const body = (response.body ?? {}) as IDataObject;
 	const rpcError = body.error as IDataObject | undefined;
 	if (rpcError) {
@@ -85,15 +100,10 @@ export async function mcpResult(
 			httpCode: code === 'miniapps_scope' || code === 'insufficient_scope' ? '403' : '400',
 		});
 	}
-	let data = result.structuredContent as IDataObject | undefined;
-	if (!data) {
-		try {
-			data = JSON.parse(message) as IDataObject;
-		} catch {
-			data = { result: message };
-		}
+	if (result.structuredContent) return result.structuredContent as IDataObject;
+	try {
+		return JSON.parse(message) as IDataObject;
+	} catch {
+		return { result: message };
 	}
-	if (Array.isArray(data.records)) return (data.records as IDataObject[]).map((json) => ({ json }));
-	if (data.record && typeof data.record === 'object') return [{ json: data.record as IDataObject }];
-	return [{ json: data }];
 }

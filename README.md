@@ -60,14 +60,15 @@ for contact events.
 | Contact | Get · Get Many (search, list, stage filters) · Update (name, language, stage, custom fields) | `GET` / `PATCH /api/v1/contact`, `GET /api/v1/contacts` |
 | List | Get Many · Add Chat · Remove Chat | `GET /api/v1/lists`, `POST /api/v1/lists/members` |
 | Pipeline | Get Many (stages and custom fields) | `GET /api/v1/pipelines` |
-| Record | Get Many (app, entity, filter, open / closed, limit) · Create · Update · Assign (contact, agent or list; opens the dedicated WhatsApp group) | `POST /api/mcp` (tools `records_*`) |
+| Record | Get Many (app, entity, filter, open / closed, sort, limit or Return All) · Create · Update · Assign (contact, agent or list; opens the dedicated WhatsApp group) | `POST /api/mcp` (tools `records_*`) |
 | Template | Get Many | `GET /api/templates` |
 | Account | Get Many | `GET /api/me` |
 | Usage | Get (transcription minutes and WAPPE AI tokens of the month) | `GET /api/v1/usage` |
 
 **Records** (the « fiches » of your mini apps) need the **Mini apps** permission on the API key or the
 OAuth2 credential: without it the node says so (`insufficient_scope`). Get Many returns one item per
-record, most recently updated first (up to 500). An empty field is never sent, so Update only changes
+record, most recently updated first (up to 500); **Return All** reads every page in creation order,
+which stays complete even while records change. An empty field is never sent, so Update only changes
 what you set; an empty *Assign To* unassigns.
 
 Text, template and media sends can quote a message (**Options → Reply To Message ID**).
