@@ -1,0 +1,53 @@
+{
+	"name": "Wappe - Turn a WhatsApp request into a work order for the technicians",
+	"nodes": [
+		{
+			"parameters": {
+				"events": ["message.received"],
+				"filters": {
+					"groups": "exclude",
+					"text": "repair",
+					"textOperation": "contains"
+				}
+			},
+			"name": "Wappe Trigger",
+			"type": "n8n-nodes-wappe.wappeTrigger",
+			"typeVersion": 2,
+			"position": [0, 0]
+		},
+		{
+			"parameters": {
+				"resource": "record",
+				"operation": "create",
+				"app": "ot",
+				"title": "={{ 'Repair - ' + ($json.name || $json.from) }}",
+				"fields": "={{ JSON.stringify({ client: $json.name || $json.from, description: $json.text }) }}"
+			},
+			"name": "Create work order",
+			"type": "n8n-nodes-wappe.wappe",
+			"typeVersion": 1,
+			"position": [260, 0]
+		},
+		{
+			"parameters": {
+				"resource": "record",
+				"operation": "assign",
+				"app": "ot",
+				"recordId": "={{ $json.id }}",
+				"person": "Technicians"
+			},
+			"name": "Offer to Technicians",
+			"type": "n8n-nodes-wappe.wappe",
+			"typeVersion": 1,
+			"position": [520, 0]
+		}
+	],
+	"connections": {
+		"Wappe Trigger": {
+			"main": [[{ "node": "Create work order", "type": "main", "index": 0 }]]
+		},
+		"Create work order": {
+			"main": [[{ "node": "Offer to Technicians", "type": "main", "index": 0 }]]
+		}
+	}
+}

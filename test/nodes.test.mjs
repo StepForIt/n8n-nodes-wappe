@@ -62,6 +62,9 @@ const specPath = (url) => (String(url).startsWith('=') ? url.slice(1).replace(/\
 
 const node = new Wappe();
 const OPS = operations(node.description);
+// Les fiches de mini apps passent par le point MCP (POST /api/mcp), pas par une route de l'API.
+const viaApi = (o) => o.option.routing.request.url !== '/api/mcp';
+const MCP_TOOLS = join(HERE, '..', '..', '..', 'app', 'src', 'mcp', 'tools.js');
 
 test('chaque ressource a ses opérations, et toutes passent par une route déclarée', () => {
 	assert.deepEqual(
@@ -96,6 +99,10 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 			'message:sendVoice',
 			'message:transcribe',
 			'pipeline:getAll',
+			'record:assign',
+			'record:create',
+			'record:getAll',
+			'record:update',
 			'template:getAll',
 			'usage:get',
 		],
@@ -117,7 +124,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 test('contrat avec le spec OpenAPI de Wappe (routes, jeton, champs)', { skip: !existsSync(API_DOCS) && 'hors monorepo' }, async () => {
 	const { openApiSpec, docSectionIds } = await import(pathToFileURL(API_DOCS).href);
 	const spec = openApiSpec({ ids: docSectionIds() });
-	for (const o of OPS) {
+	for (const o of OPS.filter(viaApi)) {
 		const { method } = o.option.routing.request;
 		const url = specPath(o.option.routing.request.url);
 		const op = spec.paths[url]?.[method.toLowerCase()];
@@ -186,7 +193,7 @@ test('contrat OAuth2 : scopes du credential = scopes du serveur, chaque opérati
 	const { openApiSpec, docSectionIds, setScopeResolver } = await import(pathToFileURL(API_DOCS).href);
 	setScopeResolver((m, path) => { const r = integrationRoute(m, path); return r ? (r[3] === 'v1' ? ANY : r[3]) : null; });
 	const spec = openApiSpec({ ids: docSectionIds() });
-	for (const o of OPS) {
+	for (const o of OPS.filter(viaApi)) {
 		const { method } = o.option.routing.request;
 		const url = specPath(o.option.routing.request.url);
 		const op = spec.paths[url][method.toLowerCase()];
@@ -545,5 +552,81 @@ test('exemples du README : chaque paramètre existe, est visible et a une valeur
 			for (const name of [from, ...out.main.flat().map((c) => c.node)])
 				assert.ok(workflow.nodes.some((n) => n.name === name), `${file} : connexion vers ${name}`);
 		}
+	}
+});
+
+// ── Record (fiches de mini apps) : le point MCP ──
+function recordContext(params) {
+	return {
+		getNodeParameter: (name, fallback) => (name in params ? params[name] : fallback),
+		getItemIndex: () => 0,
+		getNode: () => ({ name: 'Wappe', type: 'wappe', typeVersion: 1, parameters: {} }),
+	};
+}
+const callFor = async (params) => {
+	const { recordRequest } = require('../dist/nodes/Wappe/resources/record.js');
+	return (await recordRequest.call(recordContext(params), { method: 'POST', url: '/api/mcp', body: {} })).body;
+};
+const mcpOk = (value) => ({ statusCode: 200, headers: {}, body: { jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value } } });
+const mcpRefused = (text) => ({ statusCode: 200, headers: {}, body: { jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text }], isError: true } } });
+
+test('record : 4 opérations → un tools/call records_* sur /api/mcp, seulement les champs posés', async () => {
+	for (const o of OPS.filter((x) => x.resource === 'record')) {
+		assert.equal(o.option.routing.request.url, '/api/mcp');
+		assert.equal(o.option.routing.request.method, 'POST');
+		assert.equal(o.option.routing.request.ignoreHttpStatusErrors, true, `${o.operation} : erreurs lues par mcpResult`);
+	}
+	const list = await callFor({ operation: 'getAll', app: 'ot', entity: '', open: 'open', where: '{"city":"Lyon"}', limit: 20 });
+	assert.deepEqual(list, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'records_list', arguments: { app: 'ot', where: { city: 'Lyon' }, open: true, limit: 20 } } });
+	const all = await callFor({ operation: 'getAll', app: 'ot', entity: 'site', open: 'all', where: {}, limit: 50 });
+	assert.deepEqual(all.params.arguments, { app: 'ot', entity: 'site', limit: 50 }, 'filtre vide et « All » non envoyés');
+	assert.equal((await callFor({ operation: 'getAll', app: 'ot', open: 'closed', where: '{}', limit: 5 })).params.arguments.open, false);
+
+	const create = await callFor({ operation: 'create', app: 'ot', entity: '', title: 'Fuite', status: '', fields: { address: '12 rue' } });
+	assert.deepEqual(create.params, { name: 'records_create', arguments: { app: 'ot', title: 'Fuite', fields: { address: '12 rue' } } });
+
+	const update = await callFor({ operation: 'update', app: 'ot', recordId: 'r1', title: '', status: 'done', fields: '{}' });
+	assert.deepEqual(update.params, { name: 'records_update', arguments: { app: 'ot', id: 'r1', patch: { status: 'done' } } });
+	await assert.rejects(callFor({ operation: 'update', app: 'ot', recordId: 'r1', title: '', status: '', fields: {} }), /Nothing to update/);
+	await assert.rejects(callFor({ operation: 'create', app: 'ot', fields: '{oops' }), /valid JSON/);
+
+	const assign = await callFor({ operation: 'assign', app: 'ot', recordId: 'r1', person: 'list:techs', assignOptions: { group: false, intro: 'Bonjour' } });
+	assert.deepEqual(assign.params, { name: 'records_assign', arguments: { app: 'ot', id: 'r1', person: 'list:techs', group: false, intro: 'Bonjour' } });
+	const unassign = await callFor({ operation: 'assign', app: 'ot', recordId: 'r1', person: '', assignOptions: {} });
+	assert.deepEqual(unassign.params.arguments, { app: 'ot', id: 'r1', person: null }, 'vide = désassigner');
+});
+
+test('record : réponse MCP → items (une fiche par item), refus lisibles (portée miniapps, module éteint)', async () => {
+	const { mcpResult } = require('../dist/nodes/Wappe/errors.js');
+	const ctx = recordContext({});
+	assert.deepEqual(await mcpResult.call(ctx, [], mcpOk({ app: 'ot', entity: 'order', records: [{ id: 'r1' }, { id: 'r2' }] })), [{ json: { id: 'r1' } }, { json: { id: 'r2' } }]);
+	assert.deepEqual(await mcpResult.call(ctx, [], mcpOk({ app: 'ot', entity: 'order', records: [] })), []);
+	assert.deepEqual(await mcpResult.call(ctx, [], mcpOk({ record: { id: 'r3', title: 'Fuite' } })), [{ json: { id: 'r3', title: 'Fuite' } }]);
+	assert.deepEqual(await mcpResult.call(ctx, [], mcpOk({ record: { id: 'r3' }, changes: { status: ['todo', 'done'] } })), [{ json: { id: 'r3' } }]);
+	await assert.rejects(
+		mcpResult.call(ctx, [], mcpRefused('droit manquant : ce jeton n\'a pas la portée « miniapps » (insufficient_scope). Créez un jeton avec cette portée sur la page Développeurs.')),
+		(e) => e.httpCode === '403' && /Mini apps/.test(e.description) && /miniapps/.test(e.message),
+	);
+	await assert.rejects(
+		mcpResult.call(ctx, [], mcpRefused('Module Mini apps désactivé : lecture et export seulement. {"code":"disabled"}')),
+		(e) => e.message === 'Module Mini apps désactivé : lecture et export seulement.' && e.description.startsWith('Code: disabled.'),
+	);
+	await assert.rejects(mcpResult.call(ctx, [], { statusCode: 401, headers: {}, body: { error: 'jeton d\'API requis', code: 'invalid_token' } }), (e) => e.httpCode === '401');
+	await assert.rejects(mcpResult.call(ctx, [], { statusCode: 200, headers: {}, body: { jsonrpc: '2.0', id: 1, error: { code: -32602, message: 'outil inconnu : records_x' } } }), /outil inconnu/);
+});
+
+test('record : contrat avec les outils MCP de Wappe (nom, portée miniapps, arguments connus)', { skip: !existsSync(MCP_TOOLS) && 'hors monorepo' }, async () => {
+	const { readFileSync } = require('node:fs');
+	const { RECORD_TOOLS } = require('../dist/nodes/Wappe/resources/record.js');
+	const src = readFileSync(MCP_TOOLS, 'utf8');
+	// Sans charger le serveur (ses dépendances) : le bloc de chaque outil dans la source.
+	const sent = { getAll: ['app', 'entity', 'where', 'open', 'limit'], create: ['app', 'entity', 'title', 'status', 'fields'], update: ['app', 'entity', 'id', 'patch'], assign: ['app', 'entity', 'id', 'person', 'group', 'intro', 'notify'] };
+	assert.deepEqual(Object.keys(RECORD_TOOLS).sort(), OPS.filter((o) => o.resource === 'record').map((o) => o.operation).sort());
+	for (const [op, tool] of Object.entries(RECORD_TOOLS)) {
+		const block = new RegExp(`name: "${tool}", scope: "miniapps"[\\s\\S]*?inputSchema: obj\\(\\{([^\\n]*)\\}(?:, \\[([^\\]]*)\\])?\\)`).exec(src);
+		assert.ok(block, `${tool} : outil MCP de portée miniapps`);
+		const known = [...block[1].matchAll(/(?:^|[{,])\s*(\w+):/g)].map((m) => m[1]);
+		for (const k of sent[op]) assert.ok(known.includes(k), `${tool} : argument ${k} inconnu`);
+		for (const k of (block[2] ?? '').match(/\w+/g) ?? []) assert.ok(sent[op].includes(k), `${tool} : argument requis ${k} non envoyé`);
 	}
 });

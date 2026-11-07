@@ -19,6 +19,7 @@ import {
 	usageOperations,
 } from './resources/lookup';
 import { messageFields, messageOperations } from './resources/message';
+import { recordFields, recordOperations } from './resources/record';
 
 export class Wappe implements INodeType {
 	description: INodeTypeDescription = {
@@ -28,7 +29,7 @@ export class Wappe implements INodeType {
 		group: ['output'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Send and read WhatsApp messages, manage groups and follow usage with Wappe',
+		description: 'Send and read WhatsApp messages, manage groups and mini app records, follow usage with Wappe',
 		defaults: { name: 'Wappe' },
 		usableAsTool: true,
 		inputs: [NodeConnectionTypes.Main],
@@ -53,6 +54,7 @@ export class Wappe implements INodeType {
 					{ name: 'List', value: 'list' },
 					{ name: 'Message', value: 'message' },
 					{ name: 'Pipeline', value: 'pipeline' },
+					{ name: 'Record', value: 'record', description: 'Records of the mini apps' },
 					{ name: 'Template', value: 'template' },
 					{ name: 'Usage', value: 'usage' },
 				],
@@ -67,6 +69,7 @@ export class Wappe implements INodeType {
 			...contactOperations.slice(0, 1),
 			...listOperations.slice(0, 1),
 			...pipelineOperations,
+			...recordOperations,
 			accountLocator({ show: { resource: ['message', 'group', 'chat'] } }),
 			accountLocator({ show: { resource: ['contact'], operation: ['get', 'update'] } }),
 			accountLocator({ show: { resource: ['list'], operation: ['addMember', 'removeMember'] } }),
@@ -74,6 +77,7 @@ export class Wappe implements INodeType {
 			...listOperations.slice(1),
 			...messageFields,
 			...groupFields,
+			...recordFields,
 		],
 	};
 
