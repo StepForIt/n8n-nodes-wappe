@@ -146,15 +146,23 @@ several workflows ask. If transcription fails, the event is still sent with
 
 - When the workflow is activated, n8n subscribes its webhook URL on your instance
   (`POST /api/webhooks/subscriptions`). When it is deactivated, n8n removes the subscription.
-- Every delivery is signed (`X-Wappe-Signature: sha256=…`, HMAC of the body with a per-subscription
-  secret). The node rejects anything unsigned or badly signed.
+- Every delivery is signed (`X-Wappe-Signature-V2: sha256=…`, HMAC of `timestamp.body` with a
+  per-subscription secret, the timestamp is in `X-Wappe-Timestamp`). The node rejects anything unsigned,
+  badly signed, or whose timestamp is more than 5 minutes off your clock (replay protection): keep n8n's
+  server clock correct.
 - Every event has `session`, `chatId`, `isGroup`, `from`, `name`; message events add `msgId`, `text`,
   `type`, `fromMe`, `ts`, `reply`, `media`. With **Download Media** on, the attachment (photo, voice
   note, video, document) is in the binary property `data`.
 - WhatsApp sometimes delivers the same event twice. Wappe sends it to n8n only once.
 - Workflows created before 0.4.0 (node version 1: Message Received, Include Group Messages) keep working.
 
-Wappe only calls public addresses: n8n must be reachable from the internet (SSRF protection).
+Wappe only calls public **HTTPS** addresses: n8n must be reachable from the internet over HTTPS (SSRF
+protection). A plain `http://` webhook URL is refused when the workflow is activated (`http://localhost` is
+only accepted by a non-production Wappe).
+
+**Upgrading from 0.11:** reactivate your workflows (or just let n8n re-subscribe). Workflows activated
+before 0.12 keep working during a grace period: Wappe still sends the old `X-Wappe-Signature` next to the
+new one for their subscription, and this node now checks the new one.
 
 ## Usage examples
 

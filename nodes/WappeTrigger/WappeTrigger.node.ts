@@ -113,6 +113,8 @@ export function subscriptionOptions(param: (name: string, fallback?: unknown) =>
 		events: param('events', ['message.received']) as string[],
 		filters,
 		transcribe: !!param('transcribe', false),
+		// Timestamped signature only: the legacy body-only header (replayable) is not sent to this node.
+		signature: 'v2',
 		...(param('analyze', false) ? { analyze: true } : {}),
 	};
 }
@@ -124,6 +126,31 @@ export function isValidSignature(
 	secret: string,
 ): boolean {
 	const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+	const a = Buffer.from(expected);
+	const b = Buffer.from(String(signature || ''));
+	return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Widest gap accepted between the signed timestamp and our clock (replay window), in seconds. */
+export const SIGNATURE_TOLERANCE_S = 300;
+
+/**
+ * True when `signature` is HMAC-SHA256(secret, `${timestamp}.${rawBody}`) AND `timestamp` (Unix seconds)
+ * is within SIGNATURE_TOLERANCE_S of `nowMs`. A valid but old delivery (replay) is refused.
+ */
+export function isValidSignatureV2(
+	rawBody: string | Buffer,
+	timestamp: string,
+	signature: string,
+	secret: string,
+	nowMs: number = Date.now(),
+): boolean {
+	const ts = Number(timestamp);
+	if (!/^\d{1,12}$/.test(String(timestamp ?? '')) || !Number.isFinite(ts)) return false;
+	if (Math.abs(nowMs / 1000 - ts) > SIGNATURE_TOLERANCE_S) return false;
+	const expected =
+		'sha256=' +
+		createHmac('sha256', secret).update(`${ts}.`).update(rawBody).digest('hex');
 	const a = Buffer.from(expected);
 	const b = Buffer.from(String(signature || ''));
 	return a.length === b.length && timingSafeEqual(a, b);
@@ -424,8 +451,9 @@ export class WappeTrigger implements INodeType {
 		const staticData = this.getWorkflowStaticData('node');
 		const secret = String(staticData.secret ?? '');
 		const raw = (req as unknown as { rawBody?: Buffer }).rawBody ?? JSON.stringify(req.body);
-		const signature = String(req.headers['x-wappe-signature'] ?? '');
-		if (!secret || !isValidSignature(raw, signature, secret)) {
+		const signature = String(req.headers['x-wappe-signature-v2'] ?? '');
+		const timestamp = String(req.headers['x-wappe-timestamp'] ?? '');
+		if (!secret || !isValidSignatureV2(raw, timestamp, signature, secret)) {
 			this.getResponseObject().status(401).json({ error: 'invalid signature' });
 			return { noWebhookResponse: true };
 		}

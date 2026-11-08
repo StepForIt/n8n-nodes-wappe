@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+
+- Security: the trigger verifies the timestamped signature (`X-Wappe-Signature-V2`, HMAC of
+  `timestamp.body`) and refuses a delivery more than 5 minutes off (replay). It subscribes with
+  `signature: "v2"`, so Wappe no longer sends it the old body-only signature.
+- Wappe refuses a non-HTTPS webhook URL: your n8n must be reachable over `https://`.
+
 ## 0.11.0
 
 - New resource **Record** (the records of your mini apps): **Get Many** (app, entity, JSON filter, open or

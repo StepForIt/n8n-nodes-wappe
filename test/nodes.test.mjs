@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 const require = createRequire(import.meta.url);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const { Wappe } = require('../dist/nodes/Wappe/Wappe.node.js');
-const { WappeTrigger, isValidSignature } = require('../dist/nodes/WappeTrigger/WappeTrigger.node.js');
+const { WappeTrigger, isValidSignature, isValidSignatureV2 } = require('../dist/nodes/WappeTrigger/WappeTrigger.node.js');
 const { WappeApi } = require('../dist/credentials/WappeApi.credentials.js');
 const { WappeOAuth2Api } = require('../dist/credentials/WappeOAuth2Api.credentials.js');
 const { searchAccounts, searchGroups, searchTemplates, searchContacts, searchStages } = require('../dist/nodes/Wappe/listSearch.js');
@@ -355,6 +355,7 @@ test('trigger 2 : événements, filtres (listes par locator / id / nom), transcr
 			emojis: ['👍', '❤️', '🔥'],
 		},
 		transcribe: true,
+		signature: 'v2',
 		analyze: true,
 		description: 'n8n workflow wf1',
 	});
@@ -390,12 +391,13 @@ test('trigger : checkExists oublie un abonnement disparu côté Wappe', async ()
 	assert.deepEqual(staticData, {});
 });
 
-function webhookContext({ body, secret = 'whsec_1', signWith = secret, params = {}, responses = {} }) {
+function webhookContext({ body, secret = 'whsec_1', signWith = secret, params = {}, responses = {}, ts = Math.floor(Date.now() / 1000), legacyOnly = false }) {
 	const raw = Buffer.from(JSON.stringify(body));
-	const signature = 'sha256=' + crypto.createHmac('sha256', signWith).update(raw).digest('hex');
+	const signature = 'sha256=' + crypto.createHmac('sha256', signWith).update(`${ts}.`).update(raw).digest('hex');
+	const legacy = 'sha256=' + crypto.createHmac('sha256', signWith).update(raw).digest('hex');
 	const ctx = fakeContext({ staticData: { subscriptionId: 'sub_1', secret }, params, responses });
 	const response = { statusCode: 200, sent: null };
-	ctx.getRequestObject = () => ({ body, rawBody: raw, headers: { 'x-wappe-signature': signature } });
+	ctx.getRequestObject = () => ({ body, rawBody: raw, headers: legacyOnly ? { 'x-wappe-signature': legacy } : { 'x-wappe-timestamp': String(ts), 'x-wappe-signature-v2': signature, 'x-wappe-signature': legacy } });
 	ctx.getResponseObject = () => ({
 		status(code) { response.statusCode = code; return this; },
 		json(v) { response.sent = v; return this; },
@@ -429,6 +431,18 @@ test('trigger : un POST signé devient un item ; une signature fausse est refus�
 	assert.equal(bad.response.statusCode, 401);
 });
 
+test('trigger : horodatage hors fenêtre de 5 min (rejeu) ou ancienne signature seule = 401', async () => {
+	const trigger = new WappeTrigger();
+	const now = Math.floor(Date.now() / 1000);
+	const fresh = webhookContext({ body: EVENT, ts: now - 290 });
+	assert.equal((await trigger.webhook.call(fresh.ctx)).workflowData[0].length, 1, '290 s : dans la fenêtre');
+	for (const [name, opts] of [['trop ancien', { ts: now - 310 }], ['dans le futur', { ts: now + 310 }], ['ancienne signature seule', { legacyOnly: true }]]) {
+		const c = webhookContext({ body: EVENT, ...opts });
+		assert.deepEqual(await trigger.webhook.call(c.ctx), { noWebhookResponse: true }, name);
+		assert.equal(c.response.statusCode, 401, name);
+	}
+});
+
 test('trigger : un média reçu est téléchargé avec le jeton et livré en binaire', async () => {
 	const body = {
 		...EVENT,
@@ -454,6 +468,20 @@ test('signature : comparaison stricte', () => {
 	assert.equal(isValidSignature('{}', sig, 'k'), true);
 	assert.equal(isValidSignature('{} ', sig, 'k'), false);
 	assert.equal(isValidSignature('{}', '', 'k'), false);
+});
+
+test('signature V2 : horodatage signé avec le corps, fenêtre de 5 min', () => {
+	const raw = '{"a":1}';
+	const sign = (ts, secret = 'k') => 'sha256=' + crypto.createHmac('sha256', secret).update(`${ts}.${raw}`).digest('hex');
+	const now = 1_800_000_000_000;
+	const ts = String(now / 1000);
+	assert.equal(isValidSignatureV2(raw, ts, sign(ts), 'k', now), true);
+	assert.equal(isValidSignatureV2(raw, ts, sign(ts, 'x'), 'k', now), false, 'mauvais secret');
+	assert.equal(isValidSignatureV2(raw + ' ', ts, sign(ts), 'k', now), false, 'corps modifié');
+	const other = String(now / 1000 + 1);
+	assert.equal(isValidSignatureV2(raw, other, sign(ts), 'k', now), false, 'horodatage modifié après signature');
+	assert.equal(isValidSignatureV2(raw, '', sign(ts), 'k', now), false);
+	assert.equal(isValidSignatureV2(raw, 'abc', sign('abc'), 'k', now), false);
 });
 
 test('pièce jointe : URL ou binaire n8n posé dans le corps (media, ou audio pour un vocal)', async () => {
