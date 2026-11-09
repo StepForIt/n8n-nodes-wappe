@@ -1,5 +1,6 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { splitContacts } from '../binary';
+import { sendResult } from '../errors';
 import { locator, rl } from '../locators';
 
 const SESSION = rl('session');
@@ -242,6 +243,22 @@ export const listOperations: INodeProperties[] = [
 				},
 			},
 			{
+				name: 'Create',
+				value: 'create',
+				action: 'Create a list',
+				description: 'Create a list, or return the existing one when the name is already taken (accents and case ignored)',
+				routing: {
+					request: {
+						method: 'POST',
+						url: '/api/v1/lists',
+						body: { name: '={{$parameter.listName}}', color: '={{$parameter.listColor || undefined}}' },
+						ignoreHttpStatusErrors: true,
+						returnFullResponse: true,
+					},
+					output: { postReceive: [sendResult] },
+				},
+			},
+			{
 				name: 'Get Many',
 				value: 'getAll',
 				action: 'Get many lists',
@@ -265,6 +282,24 @@ export const listOperations: INodeProperties[] = [
 			},
 		],
 		default: 'addMember',
+	},
+	{
+		displayName: 'Name',
+		name: 'listName',
+		type: 'string',
+		required: true,
+		default: '',
+		placeholder: 'VIP',
+		displayOptions: onList('create'),
+		description: 'A name already used by a list (case and accents ignored) returns that list with existing: true',
+	},
+	{
+		displayName: 'Color',
+		name: 'listColor',
+		type: 'color',
+		default: '',
+		displayOptions: onList('create'),
+		description: 'Optional. Leave empty for Wappe\'s default color.',
 	},
 	locator({
 		displayName: 'List',

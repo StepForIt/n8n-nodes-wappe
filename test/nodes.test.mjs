@@ -84,6 +84,7 @@ test('chaque ressource a ses opérations, et toutes passent par une route décla
 			'group:removeMembers',
 			'group:update',
 			'list:addMember',
+			'list:create',
 			'list:getAll',
 			'list:removeMember',
 			'message:analyze',
@@ -693,4 +694,30 @@ test('record : Get Many « Return All » suit le curseur next (after, même tri)
 	await assert.rejects(recordPages.call(refused, [], mcpOk({ records: [], next: 'c1' })), /curseur invalide/);
 	assert.equal(refused.calls[0].credType, 'wappeOAuth2Api');
 	assert.deepEqual((await callFor({ ...params, returnAll: false, sort: '' })).params.arguments, { app: 'ot', open: true, limit: 7 }, 'sans Return All : tri par défaut du serveur');
+});
+
+test('list : Create → POST /api/v1/lists {name, color}, existing lisible, clé sans portée = erreur claire', async () => {
+	const op = OPS.find((x) => x.resource === 'list' && x.operation === 'create');
+	assert.ok(op, 'List › Create existe');
+	const r = op.option.routing.request;
+	assert.equal(r.method, 'POST');
+	assert.equal(r.url, '/api/v1/lists');
+	assert.equal(r.ignoreHttpStatusErrors, true, 'erreurs lues par sendResult');
+	assert.deepEqual(Object.keys(r.body).sort(), ['color', 'name']);
+	const props = new Wappe().description.properties;
+	for (const name of ['listName', 'listColor']) {
+		const p = props.find((x) => x.name === name);
+		assert.ok(p && p.displayOptions.show.operation.includes('create'), `${name} visible sur Create`);
+	}
+	assert.equal(props.find((x) => x.name === 'listName').required, true);
+	const { sendResult } = require('../dist/nodes/Wappe/errors.js');
+	const ctx = { getNode: () => ({ name: 'Wappe', type: 'n8n-nodes-wappe.wappe', typeVersion: 1, position: [0, 0], id: 'x', parameters: {} }) };
+	const created = await sendResult.call(ctx, [], { statusCode: 201, headers: {}, body: { ok: true, existing: false, list: { id: 'cat_1', name: 'VIP' } } });
+	assert.equal(created[0].json.list.name, 'VIP');
+	const dup = await sendResult.call(ctx, [], { statusCode: 200, headers: {}, body: { ok: true, existing: true, list: { id: 'cat_1', name: 'VIP' } } });
+	assert.equal(dup[0].json.existing, true);
+	await assert.rejects(
+		() => sendResult.call(ctx, [], { statusCode: 403, headers: {}, body: { error: 'portée « lists » manquante', code: 'insufficient_scope' } }),
+		(e) => /lists/.test(e.message) && /permission/.test(e.description),
+	);
 });

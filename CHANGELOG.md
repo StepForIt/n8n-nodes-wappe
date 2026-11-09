@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.0
+
+- New operation **List → Create** (name, optional color): `POST /api/v1/lists`. A name already used (case and accents
+  ignored) returns the existing list with `existing: true`, never a duplicate. A key without the `lists` permission gets
+  a readable error.
+
 ## 0.12.0
 
 - Security: the trigger verifies the timestamped signature (`X-Wappe-Signature-V2`, HMAC of

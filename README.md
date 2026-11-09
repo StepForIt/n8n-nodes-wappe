@@ -58,7 +58,7 @@ for contact events.
 | Chat | Mark as Read (WhatsApp read receipt) | `POST /api/v1/chats/read` |
 | Group | Create · Add / Remove Members · Promote / Demote Admins · Update · Get Invite Link · Get Many | `/api/group/*`, `GET /api/groups` |
 | Contact | Get · Get Many (search, list, stage filters) · Update (name, language, stage, custom fields) | `GET` / `PATCH /api/v1/contact`, `GET /api/v1/contacts` |
-| List | Get Many · Add Chat · Remove Chat | `GET /api/v1/lists`, `POST /api/v1/lists/members` |
+| List | Get Many · Create (name, color; an existing name returns that list) · Add Chat · Remove Chat | `GET` / `POST /api/v1/lists`, `POST /api/v1/lists/members` |
 | Pipeline | Get Many (stages and custom fields) | `GET /api/v1/pipelines` |
 | Record | Get Many (app, entity, filter, open / closed, sort, limit or Return All) · Create · Update · Assign (contact, agent or list; opens the dedicated WhatsApp group) | `POST /api/mcp` (tools `records_*`) |
 | Template | Get Many | `GET /api/templates` |
